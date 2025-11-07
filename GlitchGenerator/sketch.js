@@ -3,7 +3,7 @@ let gridSize = 100; // Number of rows and columns
 let canvasSize = 800;
 
 function preload() {
-  img = loadImage('image.png');
+ // img = loadImage('image.png');
  img = loadImage('spec0823_texture-1.png');
   
   
