@@ -1,22 +1,30 @@
+let originalImg;
 let img;
 let gridSize = 100; // Number of rows and columns
 let canvasSize = 800;
 
+let params = {
+  tileSize: 8,
+  circleScale: 1,
+};
+
+let gui;
+
 function preload() {
- // img = loadImage('image.png');
- img = loadImage('spec0823_texture-1.png');
-  
-  
+  // img = loadImage('image.png');
+  originalImg = loadImage('spec0823_texture-1.png');
 }
 
 function setup() {
   createCanvas(canvasSize, canvasSize);
+  gui = new dat.GUI();
+  gui.add(params, 'tileSize', 4, canvasSize, 1).name('Tile Size').onChange(updateGrid);
+  gui.add(params, 'circleScale', 0.1, 5, 0.1).name('Circle Scale');
   button = createButton('save image');
   button.position(10, 410);
   button.mousePressed(saveDrawing);
-  img.resize(gridSize, gridSize);
-  img.loadPixels(); // Load the pixels of the resized image
-  noLoop(); // No continuous drawing needed
+  updateGrid();
+  //noLoop(); // No continuous drawing needed
   
 }
 
@@ -53,7 +61,7 @@ function draw() {
       r =r / 255 *200;
       r = 255 -r;
 
-      let circleSize = r/255*tileSize;
+      let circleSize = (r/255*tileSize) * params.circleScale;
 
       fill('black');
     
@@ -66,4 +74,13 @@ function draw() {
 
 function saveDrawing() {
   save("Picture.png");
+}
+
+function updateGrid() {
+  gridSize = Math.max(1, Math.floor(canvasSize / params.tileSize));
+  if (originalImg) {
+    img = originalImg.get();
+    img.resize(gridSize, gridSize);
+    img.loadPixels();
+  }
 }
