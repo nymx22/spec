@@ -1,22 +1,46 @@
+let originalImg;
 let img;
+let canvas;
 let gridSize = 100; // Number of rows and columns
 let canvasSize = 800;
 
+const sliderRanges = {
+  tileSize: { min: 1, max: 40, step: 1, default: 4 },
+  circleScale: { min: 0.1, max: 10, step: 0.1, default: 1 },
+  shapeIndex: { min: 0, max: 3, step: 1, default: 0 },
+};
+
+let params = {
+  tileSize: sliderRanges.tileSize.default,
+  circleScale: sliderRanges.circleScale.default,
+  shapeIndex: sliderRanges.shapeIndex.default,
+};
+
+let gui;
+
 function preload() {
- // img = loadImage('image.png');
- img = loadImage('spec0823_texture-1.png');
-  
-  
+  // img = loadImage('image.png');
+  originalImg = loadImage('spec0823_texture-1.png');
 }
 
 function setup() {
-  createCanvas(canvasSize, canvasSize);
+  canvasSize = Math.min(windowWidth, windowHeight);
+  canvas = createCanvas(canvasSize, canvasSize);
+  positionCanvasInWindow();
+  gui = new dat.GUI();
+  gui.add(params, 'tileSize', sliderRanges.tileSize.min, sliderRanges.tileSize.max, sliderRanges.tileSize.step)
+    .name('Tile Size')
+    .onChange(updateGrid);
+  gui.add(params, 'circleScale', sliderRanges.circleScale.min, sliderRanges.circleScale.max, sliderRanges.circleScale.step)
+    .name('Circle Scale');
+  gui.add(params, 'shapeIndex', sliderRanges.shapeIndex.min, sliderRanges.shapeIndex.max, sliderRanges.shapeIndex.step)
+    .name('Shape')
+    .listen();
   button = createButton('save image');
-  button.position(10, 410);
   button.mousePressed(saveDrawing);
-  img.resize(gridSize, gridSize);
-  img.loadPixels(); // Load the pixels of the resized image
-  noLoop(); // No continuous drawing needed
+  positionButtonBelowGui();
+  updateGrid();
+  //noLoop(); // No continuous drawing needed
   
 }
 
@@ -53,12 +77,12 @@ function draw() {
       r =r / 255 *200;
       r = 255 -r;
 
-      let circleSize = r/255*tileSize;
+      let circleSize = (r/255*tileSize) * params.circleScale;
 
-      fill('black');
-    
-      noStroke();
-      rect(x * tileSize + tileSize/2, y * tileSize - circleSize/2, tileSize, circleSize);
+      const baseX = x * tileSize;
+      const baseY = y * tileSize;
+
+      drawShape(baseX, baseY, tileSize, circleSize);
     }
   }
 }
@@ -66,4 +90,85 @@ function draw() {
 
 function saveDrawing() {
   save("Picture.png");
+}
+
+function updateGrid() {
+  gridSize = Math.max(1, Math.floor(canvasSize / params.tileSize));
+  if (originalImg) {
+    img = originalImg.get();
+    img.resize(gridSize, gridSize);
+    img.loadPixels();
+  }
+}
+
+function windowResized() {
+  canvasSize = Math.min(windowWidth, windowHeight);
+  resizeCanvas(canvasSize, canvasSize);
+  positionCanvasInWindow();
+  updateGrid();
+  if (typeof button !== 'undefined') {
+    positionButtonBelowGui();
+  }
+}
+
+function positionButtonBelowGui() {
+  if (!gui || typeof button === 'undefined') return;
+  const rect = gui.domElement.getBoundingClientRect();
+  // Position button just below the GUI panel, aligned to its left edge
+  button.position(rect.left, rect.bottom + 30);
+}
+
+function positionCanvasInWindow() {
+  if (!canvas) return;
+  const x = (windowWidth - canvasSize) / 2;
+  const y = (windowHeight - canvasSize) / 2;
+  canvas.position(x, y);
+}
+
+function drawShape(baseX, baseY, tileSize, circleSize) {
+  const centerX = baseX + tileSize / 2;
+  const centerY = baseY + tileSize / 2;
+
+  push();
+  switch (params.shapeIndex) {
+    case 1:
+      noStroke();
+      fill('black');
+      ellipse(centerX, centerY, tileSize, circleSize);
+      break;
+    case 2:
+      noStroke();
+      fill('black');
+      quad(
+        centerX,
+        centerY - circleSize / 2,
+        centerX + tileSize / 2,
+        centerY,
+        centerX,
+        centerY + circleSize / 2,
+        centerX - tileSize / 2,
+        centerY
+      );
+      break;
+    case 3:
+      noFill();
+      stroke('black');
+      strokeWeight(2);
+      bezier(
+        centerX - tileSize / 2,
+        centerY - circleSize / 2,
+        centerX - tileSize / 4,
+        centerY,
+        centerX + tileSize / 4,
+        centerY,
+        centerX + tileSize / 2,
+        centerY + circleSize / 2
+      );
+      break;
+    default:
+      noStroke();
+      fill('black');
+      rect(baseX, centerY - circleSize / 2, tileSize, circleSize);
+  }
+  pop();
 }
