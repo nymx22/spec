@@ -37,7 +37,7 @@ function setup() {
   gui.add(params, 'shapeIndex', sliderRanges.shapeIndex.min, sliderRanges.shapeIndex.max, sliderRanges.shapeIndex.step)
     .name('Shape')
     .listen();
-  button = createButton('save image');
+  button = createButton('Save Artwork');
   button.mousePressed(saveDrawing);
   positionButtonBelowGui();
   updateGrid();
