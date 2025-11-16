@@ -17,6 +17,7 @@ let params = {
 };
 
 let gui;
+let uploadInput, uploadLabel, uploadButton;
 
 function preload() {
   // img = loadImage('image.png');
@@ -42,6 +43,39 @@ function setup() {
   updateGrid();
   //noLoop(); // No continuous drawing needed
   
+  // Remove any pre-existing upload input from HTML (if any)
+  const oldInput = document.getElementById('img-upload');
+  if (oldInput) oldInput.remove();
+  const oldLabel = document.getElementById('upload-label');
+  if (oldLabel) oldLabel.remove();
+  const oldButton = document.getElementById('upload-button');
+  if (oldButton) oldButton.remove();
+
+  // Hidden file input
+  uploadInput = createFileInput(handleImageUpload);
+  uploadInput.id('img-upload');
+  uploadInput.attribute('accept', 'image/*');
+  uploadInput.style('display', 'none'); // Hide actual file input
+
+  // Custom 'Upload Image' button
+  uploadButton = createButton('Upload Image');
+  uploadButton.id('upload-button');
+  uploadButton.mousePressed(() => uploadInput.elt.click());
+  uploadButton.style('display', 'inline-block');
+
+  positionUploadControl();
+}
+
+function handleImageUpload(file) {
+  if (!file || !file.data) return;
+  loadImage(file.data, (loadedImg) => {
+    if (loadedImg) {
+      originalImg = loadedImg;
+      updateGrid();
+    } else {
+      alert('Could not load image.');
+    }
+  });
 }
 
 function draw() {
@@ -109,6 +143,7 @@ function windowResized() {
   if (typeof button !== 'undefined') {
     positionButtonBelowGui();
   }
+  positionUploadControl();
 }
 
 function positionButtonBelowGui() {
@@ -116,6 +151,17 @@ function positionButtonBelowGui() {
   const rect = gui.domElement.getBoundingClientRect();
   // Position button just below the GUI panel, aligned to its left edge
   button.position(rect.left, rect.bottom + 30);
+}
+
+function positionUploadControl() {
+  if (!gui || !uploadInput || !uploadButton) return;
+  const rect = gui.domElement.getBoundingClientRect();
+  // Place Upload Image button just below GUI
+  uploadButton.position(rect.left, rect.bottom + 24);
+  if (typeof button !== 'undefined') {
+    // Move save button further down
+    button.position(rect.left, rect.bottom + 60);
+  }
 }
 
 function positionCanvasInWindow() {
