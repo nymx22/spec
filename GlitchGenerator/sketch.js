@@ -1,5 +1,6 @@
 let originalImg;
 let img;
+let canvas;
 let gridSize = 100; // Number of rows and columns
 let canvasSize = 800;
 
@@ -23,7 +24,9 @@ function preload() {
 }
 
 function setup() {
-  createCanvas(canvasSize, canvasSize);
+  canvasSize = Math.min(windowWidth, windowHeight);
+  canvas = createCanvas(canvasSize, canvasSize);
+  positionCanvasInWindow();
   gui = new dat.GUI();
   gui.add(params, 'tileSize', sliderRanges.tileSize.min, sliderRanges.tileSize.max, sliderRanges.tileSize.step)
     .name('Tile Size')
@@ -34,8 +37,8 @@ function setup() {
     .name('Shape')
     .listen();
   button = createButton('save image');
-  button.position(10, 410);
   button.mousePressed(saveDrawing);
+  positionButtonBelowGui();
   updateGrid();
   //noLoop(); // No continuous drawing needed
   
@@ -96,6 +99,30 @@ function updateGrid() {
     img.resize(gridSize, gridSize);
     img.loadPixels();
   }
+}
+
+function windowResized() {
+  canvasSize = Math.min(windowWidth, windowHeight);
+  resizeCanvas(canvasSize, canvasSize);
+  positionCanvasInWindow();
+  updateGrid();
+  if (typeof button !== 'undefined') {
+    positionButtonBelowGui();
+  }
+}
+
+function positionButtonBelowGui() {
+  if (!gui || typeof button === 'undefined') return;
+  const rect = gui.domElement.getBoundingClientRect();
+  // Position button just below the GUI panel, aligned to its left edge
+  button.position(rect.left, rect.bottom + 30);
+}
+
+function positionCanvasInWindow() {
+  if (!canvas) return;
+  const x = (windowWidth - canvasSize) / 2;
+  const y = (windowHeight - canvasSize) / 2;
+  canvas.position(x, y);
 }
 
 function drawShape(baseX, baseY, tileSize, circleSize) {
