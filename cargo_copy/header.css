@@ -1,0 +1,75 @@
+[id="Y4052949513"].page {
+	justify-content: center;
+	min-height: auto;
+    mix-blend-mode: difference;
+}
+
+[id="Y4052949513"] .page-content {
+	text-align: left;
+	padding-top: 2rem;
+	padding-bottom: 0rem;
+}
+
+[id="Y4052949513"] .page-layout {
+	max-width: 100%;
+	align-items: flex-start;
+}
+
+@media (min-width: 768.1px) {
+[id="Y4052949513"] column-set column-unit[slot="3"] {
+    text-align: right !important;
+    }
+}
+@media (max-width: 768px) {
+[id="Y4052949513"] column-set column-unit[slot="0"],
+column-set column-unit[slot="1"], column-set column-unit[slot="2"] {
+    text-align: right;
+    }
+    
+
+/* Turn column-set into a 2-column grid on mobile */
+[id="Y4052949513"]  column-set[mobile-stack="true"] {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr;  /* 50% / 50% */
+    grid-auto-rows: auto;
+    align-items: stretch;
+  }
+
+  /* Reset flex behavior, but DO NOT touch the CSS vars */
+[id="Y4052949513"] column-set[mobile-stack="true"] > column-unit {
+    width: 100% !important;
+    margin: 0 !important;
+    flex: 0 0 auto !important;      /* harmless for grid */
+    grid-column: auto !important;
+    grid-row: auto !important;
+    /* ⚠️ don't override --column-width / --resize-parent-width here */
+  }
+
+  /* 4th unit (slot="3") → tall LEFT column */
+ [id="Y4052949513"] column-set[mobile-stack="true"] > column-unit[slot="3"] {
+    grid-column: 1 / 2 !important;   /* left side */
+    /* Make it span all rows on the right; span a big number to be safe */
+    grid-row: 1 / span 20 !important;
+    align-self: stretch;
+  }
+
+  /* 1st unit (slot="0") → top RIGHT */
+ [id="Y4052949513"] column-set[mobile-stack="true"] > column-unit[slot="0"] {
+    grid-column: 2 / 3 !important;
+  }
+
+  /* 2nd unit (slot="1") → middle RIGHT */
+ [id="Y4052949513"] column-set[mobile-stack="true"] > column-unit[slot="1"] {
+    grid-column: 2 / 3 !important;
+  }
+
+  /* 3rd unit (slot="2") → bottom RIGHT, no span */
+[id="Y4052949513"]  column-set[mobile-stack="true"] > column-unit[slot="2"] {
+    grid-column: 2 / 3 !important;
+  }
+}
+}
+
+
+
+
