@@ -44,6 +44,9 @@ function setup() {
     .name('Shape')
     .listen();
   
+  // Style the close button
+  styleCloseButton();
+  
   // Position GUI based on screen size
   if (windowWidth >= 768) {
     positionGuiInRightPanel();
@@ -51,7 +54,7 @@ function setup() {
     positionGuiBelowCanvas();
   }
   
-  button = createButton('Save Artwork');
+  button = createButton('Download');
   button.mousePressed(saveDrawing);
   positionButtonsInGui();
   updateGrid();
@@ -72,7 +75,7 @@ function setup() {
   uploadInput.style('display', 'none'); // Hide actual file input
 
   // Custom 'Upload Image' button
-  uploadButton = createButton('Upload Image');
+  uploadButton = createButton('Upload');
   uploadButton.id('upload-button');
   uploadButton.mousePressed(() => uploadInput.elt.click());
   uploadButton.style('display', 'inline-block');
@@ -184,14 +187,21 @@ function windowResized() {
   positionCanvasAndGui();
   
   // Position GUI based on screen size
-  if (windowWidth >= 768) {
-    positionGuiInRightPanel();
-  } else {
-    positionGuiBelowCanvas();
-  }
+  // Use a small delay to ensure canvas resize is complete
+  setTimeout(() => {
+    if (windowWidth >= 768) {
+      positionGuiInRightPanel();
+    } else {
+      positionGuiBelowCanvas();
+    }
+    
+    // Restyle close button after resize
+    styleCloseButton();
+    
+    positionButtonsInGui();
+  }, 10);
   
   updateGrid();
-  positionButtonsInGui();
 }
 
 function positionCanvasAndGui() {
@@ -216,13 +226,19 @@ function positionGuiInRightPanel() {
   const guiX = canvasSize; // Right edge of canvas
   const guiY = (windowHeight - canvasSize) / 2; // Align with canvas top
   
+  // Ensure canvasSize is up to date (recalculate if needed)
+  const currentCanvasSize = canvasSize;
+  
   el.style.position = 'absolute';
   el.style.left = `${guiX}px`;
   el.style.top = `${guiY}px`;
   el.style.width = `${guiWidth}px`;
   el.style.maxWidth = 'none';
-  el.style.height = `${guiHeight}px`;
-  el.style.overflowY = 'auto';
+  el.style.height = `${currentCanvasSize}px`; // Match canvas height
+  el.style.minHeight = `${currentCanvasSize}px`; // Ensure minimum height
+  el.style.maxHeight = `${currentCanvasSize}px`; // Ensure maximum height
+  el.style.overflowY = 'auto'; // Allow scrolling if content exceeds height
+  el.style.overflowX = 'hidden';
   el.style.zIndex = '10';
 }
 
@@ -247,12 +263,43 @@ function positionGuiBelowCanvas() {
   el.style.webkitOverflowScrolling = 'touch';
 }
 
+function styleCloseButton() {
+  if (!gui) return;
+  
+  // Use setTimeout to ensure GUI is fully rendered
+  setTimeout(() => {
+    const el = gui.domElement;
+    if (!el) return;
+    
+    // Find the close button (dat.GUI uses .close-button or .close-top class)
+    const closeButton = el.querySelector('.close-button') || 
+                        el.querySelector('.close-top') || 
+                        el.querySelector('.close-bottom') ||
+                        el.querySelector('button[title*="close" i]') ||
+                        el.querySelector('button[title*="Close" i]');
+    
+    if (closeButton) {
+      // Move close button to the end (after all sliders and controls)
+      el.appendChild(closeButton);
+      
+      // Style close button to match full GUI width
+      closeButton.style.width = '100%';
+      closeButton.style.marginTop = '10px';
+      closeButton.style.marginBottom = '0';
+      closeButton.style.marginLeft = '0';
+      closeButton.style.marginRight = '0';
+      closeButton.style.boxSizing = 'border-box';
+      closeButton.style.display = 'block';
+    }
+  }, 150);
+}
+
 function positionButtonsInGui() {
   if (!gui) return;
   const el = gui.domElement;
   
   if (windowWidth >= 768) {
-    // Desktop: buttons in right panel
+    // Desktop: buttons inside GUI panel
     // Remove buttons from mobile container if they exist
     const mobileContainer = document.getElementById('gui-button-container-mobile');
     if (mobileContainer) {
@@ -265,34 +312,75 @@ function positionButtonsInGui() {
       mobileContainer.remove();
     }
     
-    const guiX = canvasSize;
-    const guiY = (windowHeight - canvasSize) / 2;
-    const buttonYOffset = 200; // Approximate height of GUI controls + padding
-    
-    if (typeof button !== 'undefined' && button.elt) {
-      // Re-append to body if needed
-      if (button.elt.parentNode !== document.body) {
-        document.body.appendChild(button.elt);
+    // Create a container div for buttons inside GUI (desktop)
+    setTimeout(() => {
+      if (!el) return;
+      
+      let buttonContainer = document.getElementById('gui-button-container-desktop');
+      if (buttonContainer && buttonContainer.parentNode !== el) {
+        buttonContainer.remove();
+        buttonContainer = null;
       }
-      button.position(guiX + 10, guiY + buttonYOffset);
-      // Reset styles for desktop
-      button.elt.style.position = 'absolute';
-      button.elt.style.display = 'block';
-      button.elt.style.width = 'auto';
-      button.elt.style.margin = '0';
-    }
-    if (uploadButton && uploadButton.elt) {
-      if (uploadButton.elt.parentNode !== document.body) {
-        document.body.appendChild(uploadButton.elt);
+      if (!buttonContainer) {
+        buttonContainer = document.createElement('div');
+        buttonContainer.id = 'gui-button-container-desktop';
+        buttonContainer.style.marginTop = '20px';
+        buttonContainer.style.padding = '10px';
+        buttonContainer.style.width = '100%';
+        buttonContainer.style.boxSizing = 'border-box';
+        el.appendChild(buttonContainer);
       }
-      uploadButton.position(guiX + 10, guiY + buttonYOffset + 35);
-      uploadButton.elt.style.position = 'absolute';
-      uploadButton.elt.style.display = 'block';
-      uploadButton.elt.style.width = 'auto';
-      uploadButton.elt.style.margin = '0';
-    }
+      
+      // Append buttons to container
+      if (typeof button !== 'undefined' && button.elt) {
+        if (button.elt.parentNode !== buttonContainer) {
+          if (button.elt.parentNode) {
+            button.elt.parentNode.removeChild(button.elt);
+          }
+          buttonContainer.appendChild(button.elt);
+        }
+        // Style button to be a block element within GUI
+        button.elt.style.position = 'relative';
+        button.elt.style.display = 'block';
+        button.elt.style.width = '100%';
+        button.elt.style.marginBottom = '10px';
+        button.elt.style.marginLeft = '0';
+        button.elt.style.marginTop = '0';
+        button.elt.style.left = 'auto';
+        button.elt.style.top = 'auto';
+      }
+      
+      if (uploadButton && uploadButton.elt) {
+        if (uploadButton.elt.parentNode !== buttonContainer) {
+          if (uploadButton.elt.parentNode) {
+            uploadButton.elt.parentNode.removeChild(uploadButton.elt);
+          }
+          buttonContainer.appendChild(uploadButton.elt);
+        }
+        // Style button to be a block element within GUI
+        uploadButton.elt.style.position = 'relative';
+        uploadButton.elt.style.display = 'block';
+        uploadButton.elt.style.width = '100%';
+        uploadButton.elt.style.marginLeft = '0';
+        uploadButton.elt.style.marginTop = '0';
+        uploadButton.elt.style.left = 'auto';
+        uploadButton.elt.style.top = 'auto';
+      }
+    }, 100);
   } else {
     // Mobile: buttons inside GUI panel below controls
+    // Remove buttons from desktop container if they exist
+    const desktopContainer = document.getElementById('gui-button-container-desktop');
+    if (desktopContainer) {
+      if (typeof button !== 'undefined' && button.elt && button.elt.parentNode === desktopContainer) {
+        desktopContainer.removeChild(button.elt);
+      }
+      if (uploadButton && uploadButton.elt && uploadButton.elt.parentNode === desktopContainer) {
+        desktopContainer.removeChild(uploadButton.elt);
+      }
+      desktopContainer.remove();
+    }
+    
     // Append buttons to GUI element so they scroll with it
     setTimeout(() => {
       if (!el) return;
