@@ -3,6 +3,9 @@ let img;
 let canvas;
 let gridSize = 100; // Number of rows and columns
 let canvasSize = 800;
+let guiWidth = 0; // Will be 20% of window width or height depending on layout
+let guiHeight = 0; // For mobile layout
+const MIN_CANVAS_SIZE = 500;
 
 const sliderRanges = {
   tileSize: { min: 1, max: 40, step: 1, default: 4 },
@@ -25,9 +28,12 @@ function preload() {
 }
 
 function setup() {
-  canvasSize = Math.min(windowWidth, windowHeight);
+  // Calculate responsive layout
+  calculateLayout();
+  
   canvas = createCanvas(canvasSize, canvasSize);
-  positionCanvasInWindow();
+  positionCanvasAndGui();
+  
   gui = new dat.GUI();
   gui.add(params, 'tileSize', sliderRanges.tileSize.min, sliderRanges.tileSize.max, sliderRanges.tileSize.step)
     .name('Tile Size')
@@ -37,9 +43,17 @@ function setup() {
   gui.add(params, 'shapeIndex', sliderRanges.shapeIndex.min, sliderRanges.shapeIndex.max, sliderRanges.shapeIndex.step)
     .name('Shape')
     .listen();
+  
+  // Position GUI based on screen size
+  if (windowWidth >= 768) {
+    positionGuiInRightPanel();
+  } else {
+    positionGuiBelowCanvas();
+  }
+  
   button = createButton('Save Artwork');
   button.mousePressed(saveDrawing);
-  positionButtonBelowGui();
+  positionButtonsInGui();
   updateGrid();
   //noLoop(); // No continuous drawing needed
   
@@ -63,7 +77,7 @@ function setup() {
   uploadButton.mousePressed(() => uploadInput.elt.click());
   uploadButton.style('display', 'inline-block');
 
-  positionUploadControl();
+  positionButtonsInGui();
 }
 
 function handleImageUpload(file) {
@@ -126,6 +140,33 @@ function saveDrawing() {
   save("Picture.png");
 }
 
+function calculateLayout() {
+  if (windowWidth >= 768) {
+    // Desktop: 80% canvas, 20% GUI side-by-side
+    const totalWidth = windowWidth;
+    guiWidth = totalWidth * 0.2;
+    canvasSize = Math.floor(totalWidth * 0.8);
+    // Make canvas square, but respect minimum size
+    canvasSize = Math.max(MIN_CANVAS_SIZE, Math.min(canvasSize, windowHeight));
+    guiHeight = canvasSize; // GUI matches canvas height
+  } else {
+    // Mobile: full width canvas, GUI below taking 20% of viewport height
+    // If viewport width is smaller than minimum, use full width
+    if (windowWidth < MIN_CANVAS_SIZE) {
+      canvasSize = windowWidth;
+    } else {
+      // Otherwise, use minimum size or available space (80% of height for canvas)
+      canvasSize = Math.max(MIN_CANVAS_SIZE, Math.min(windowWidth, windowHeight * 0.8));
+    }
+    guiWidth = windowWidth; // GUI takes full width on mobile
+    // GUI takes 20% of viewport height, but ensure it's at least enough for buttons
+    const minGuiHeight = 250; // Minimum height to show controls + buttons
+    guiHeight = Math.max(minGuiHeight, windowHeight * 0.2);
+    // But don't exceed available space
+    guiHeight = Math.min(guiHeight, windowHeight - canvasSize);
+  }
+}
+
 function updateGrid() {
   gridSize = Math.max(1, Math.floor(canvasSize / params.tileSize));
   if (originalImg) {
@@ -136,39 +177,189 @@ function updateGrid() {
 }
 
 function windowResized() {
-  canvasSize = Math.min(windowWidth, windowHeight);
+  // Recalculate layout on resize
+  calculateLayout();
+  
   resizeCanvas(canvasSize, canvasSize);
-  positionCanvasInWindow();
+  positionCanvasAndGui();
+  
+  // Position GUI based on screen size
+  if (windowWidth >= 768) {
+    positionGuiInRightPanel();
+  } else {
+    positionGuiBelowCanvas();
+  }
+  
   updateGrid();
-  if (typeof button !== 'undefined') {
-    positionButtonBelowGui();
-  }
-  positionUploadControl();
+  positionButtonsInGui();
 }
 
-function positionButtonBelowGui() {
-  if (!gui || typeof button === 'undefined') return;
-  const rect = gui.domElement.getBoundingClientRect();
-  // Position button just below the GUI panel, aligned to its left edge
-  button.position(rect.left, rect.bottom + 30);
-}
-
-function positionUploadControl() {
-  if (!gui || !uploadInput || !uploadButton) return;
-  const rect = gui.domElement.getBoundingClientRect();
-  // Place Upload Image button just below GUI
-  uploadButton.position(rect.left, rect.bottom + 24);
-  if (typeof button !== 'undefined') {
-    // Move save button further down
-    button.position(rect.left, rect.bottom + 60);
-  }
-}
-
-function positionCanvasInWindow() {
+function positionCanvasAndGui() {
   if (!canvas) return;
-  const x = (windowWidth - canvasSize) / 2;
-  const y = (windowHeight - canvasSize) / 2;
-  canvas.position(x, y);
+  if (windowWidth >= 768) {
+    // Desktop: canvas on the left, centered vertically
+    const x = 0;
+    const y = (windowHeight - canvasSize) / 2;
+    canvas.position(x, y);
+  } else {
+    // Mobile: canvas centered horizontally, at top
+    const x = (windowWidth - canvasSize) / 2;
+    const y = 0;
+    canvas.position(x, y);
+  }
+}
+
+function positionGuiInRightPanel() {
+  if (!gui) return;
+  const el = gui.domElement;
+  // Position GUI in the right 20% panel (desktop)
+  const guiX = canvasSize; // Right edge of canvas
+  const guiY = (windowHeight - canvasSize) / 2; // Align with canvas top
+  
+  el.style.position = 'absolute';
+  el.style.left = `${guiX}px`;
+  el.style.top = `${guiY}px`;
+  el.style.width = `${guiWidth}px`;
+  el.style.maxWidth = 'none';
+  el.style.height = `${guiHeight}px`;
+  el.style.overflowY = 'auto';
+  el.style.zIndex = '10';
+}
+
+function positionGuiBelowCanvas() {
+  if (!gui) return;
+  const el = gui.domElement;
+  // Position GUI below canvas on mobile, taking 20% of viewport height
+  const guiX = 0; // Full width
+  const guiY = canvasSize; // Below canvas
+  
+  el.style.position = 'absolute';
+  el.style.left = `${guiX}px`;
+  el.style.top = `${guiY}px`;
+  el.style.width = `${guiWidth}px`;
+  el.style.maxWidth = 'none';
+  el.style.height = `${guiHeight}px`;
+  el.style.maxHeight = `${windowHeight - canvasSize}px`; // Don't exceed available space
+  el.style.overflowY = 'auto';
+  el.style.overflowX = 'hidden';
+  el.style.zIndex = '10';
+  // Ensure scrolling works
+  el.style.webkitOverflowScrolling = 'touch';
+}
+
+function positionButtonsInGui() {
+  if (!gui) return;
+  const el = gui.domElement;
+  
+  if (windowWidth >= 768) {
+    // Desktop: buttons in right panel
+    // Remove buttons from mobile container if they exist
+    const mobileContainer = document.getElementById('gui-button-container-mobile');
+    if (mobileContainer) {
+      if (typeof button !== 'undefined' && button.elt && button.elt.parentNode === mobileContainer) {
+        mobileContainer.removeChild(button.elt);
+      }
+      if (uploadButton && uploadButton.elt && uploadButton.elt.parentNode === mobileContainer) {
+        mobileContainer.removeChild(uploadButton.elt);
+      }
+      mobileContainer.remove();
+    }
+    
+    const guiX = canvasSize;
+    const guiY = (windowHeight - canvasSize) / 2;
+    const buttonYOffset = 200; // Approximate height of GUI controls + padding
+    
+    if (typeof button !== 'undefined' && button.elt) {
+      // Re-append to body if needed
+      if (button.elt.parentNode !== document.body) {
+        document.body.appendChild(button.elt);
+      }
+      button.position(guiX + 10, guiY + buttonYOffset);
+      // Reset styles for desktop
+      button.elt.style.position = 'absolute';
+      button.elt.style.display = 'block';
+      button.elt.style.width = 'auto';
+      button.elt.style.margin = '0';
+    }
+    if (uploadButton && uploadButton.elt) {
+      if (uploadButton.elt.parentNode !== document.body) {
+        document.body.appendChild(uploadButton.elt);
+      }
+      uploadButton.position(guiX + 10, guiY + buttonYOffset + 35);
+      uploadButton.elt.style.position = 'absolute';
+      uploadButton.elt.style.display = 'block';
+      uploadButton.elt.style.width = 'auto';
+      uploadButton.elt.style.margin = '0';
+    }
+  } else {
+    // Mobile: buttons inside GUI panel below controls
+    // Append buttons to GUI element so they scroll with it
+    setTimeout(() => {
+      if (!el) return;
+      
+      // Remove buttons from their current parent if they exist
+      if (typeof button !== 'undefined' && button.elt) {
+        if (button.elt.parentNode && button.elt.parentNode !== el) {
+          button.elt.parentNode.removeChild(button.elt);
+        }
+      }
+      if (uploadButton && uploadButton.elt) {
+        if (uploadButton.elt.parentNode && uploadButton.elt.parentNode !== el) {
+          uploadButton.elt.parentNode.removeChild(uploadButton.elt);
+        }
+      }
+      
+      // Create a container div for buttons inside GUI
+      let buttonContainer = document.getElementById('gui-button-container-mobile');
+      if (buttonContainer && buttonContainer.parentNode !== el) {
+        buttonContainer.remove();
+        buttonContainer = null;
+      }
+      if (!buttonContainer) {
+        buttonContainer = document.createElement('div');
+        buttonContainer.id = 'gui-button-container-mobile';
+        buttonContainer.style.marginTop = '20px';
+        buttonContainer.style.padding = '10px';
+        buttonContainer.style.width = '100%';
+        buttonContainer.style.boxSizing = 'border-box';
+        el.appendChild(buttonContainer);
+      }
+      
+      // Append buttons to container
+      if (typeof button !== 'undefined' && button.elt) {
+        if (button.elt.parentNode !== buttonContainer) {
+          buttonContainer.appendChild(button.elt);
+        }
+        // Style button to be a block element within GUI
+        button.elt.style.position = 'relative';
+        button.elt.style.display = 'block';
+        button.elt.style.width = '100%';
+        button.elt.style.marginBottom = '10px';
+        button.elt.style.marginLeft = '0';
+        button.elt.style.marginTop = '0';
+        button.elt.style.left = 'auto';
+        button.elt.style.top = 'auto';
+        button.elt.style.pointerEvents = 'auto';
+        button.elt.style.zIndex = 'auto';
+      }
+      
+      if (uploadButton && uploadButton.elt) {
+        if (uploadButton.elt.parentNode !== buttonContainer) {
+          buttonContainer.appendChild(uploadButton.elt);
+        }
+        // Style button to be a block element within GUI
+        uploadButton.elt.style.position = 'relative';
+        uploadButton.elt.style.display = 'block';
+        uploadButton.elt.style.width = '100%';
+        uploadButton.elt.style.marginLeft = '0';
+        uploadButton.elt.style.marginTop = '0';
+        uploadButton.elt.style.left = 'auto';
+        uploadButton.elt.style.top = 'auto';
+        uploadButton.elt.style.pointerEvents = 'auto';
+        uploadButton.elt.style.zIndex = 'auto';
+      }
+    }, 200);
+  }
 }
 
 function drawShape(baseX, baseY, tileSize, circleSize) {
