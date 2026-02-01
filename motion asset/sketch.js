@@ -23,7 +23,7 @@ const VENN_R = 85;
 const VENN_SIZE = VENN_R * 2;
 const VENN_SCALE = 1.7; // circles grow larger during Venn split
 const VENN_SIZE_SCALED = VENN_SIZE * VENN_SCALE;
-const VENN_TEXT_SIZE = 26; // keep text size constant during Venn split
+const VENN_TEXT_SIZE = 24; // keep text size constant during Venn split
 
 let uiFont;
 let cachedFinalLayouts = null;
@@ -163,7 +163,7 @@ function computeExclusiveLabelLayout(centers, r, words, textPx) {
 }
 
 function draw() {
-  background(245);
+  background(255);
 
   const cx = width / 2;
   const cy = height / 2;
@@ -171,7 +171,7 @@ function draw() {
   const size = r * 2;
 
   // Original 's' position in "spec" (centered at cx, cy) — keep s here before adding words
-  textSize(46);
+  textSize(44);
   const twSpec = textWidth('spec');
   const twS = textWidth('s');
   const sCenterX = cx - twSpec / 2 + twS / 2;
@@ -199,10 +199,11 @@ function draw() {
     { x: cx - VENN_OFFSET * 0.9, y: cy + VENN_OFFSET * 0.6 },
     { x: cx + VENN_OFFSET * 0.9, y: cy + VENN_OFFSET * 0.6 },
   ];
+  // Black & white palette (grayscale). Same fill so overlaps read slightly darker.
   const vennColors = [
-    [255, 100, 100, 150],
-    [100, 200, 255, 150],
-    [150, 255, 150, 150],
+    [235, 235, 235, 150],
+    [235, 235, 235, 150],
+    [235, 235, 235, 150],
   ];
 
   const t = (millis() / 1000) % TOTAL;
@@ -214,19 +215,19 @@ function draw() {
     const strokeAlpha = 80 * fadeIn;
 
     noStroke();
-    fill(180, 180, 220, circleAlpha);
+    fill(235, circleAlpha);
     ellipse(cx, cy, size, size);
     drawInkCircleOutline(cx, cy, size / 2, strokeAlpha * 1.6, 3, 101);
 
     const specAlpha = Math.min(1, (t - DURATION_FADE * 0.4) / (DURATION_FADE * 0.6));
     const specOpacity = 255 * Math.max(0, specAlpha);
 
-    textSize(46);
+    textSize(44);
     // Metric-based vertical centering for this font:
     // position text baseline so the glyph box center aligns to cy
     const specBaselineY = cy + (textAscent() - textDescent()) / 2;
     textAlign(CENTER, BASELINE);
-    fill(40, 40, 40, specOpacity);
+    fill(0, specOpacity);
     noStroke();
     text('spec', cx, specBaselineY);
   } else if (t < DURATION_ONE + DURATION_ZOOM_IN) {
@@ -242,7 +243,7 @@ function draw() {
     scale(circleZoom);
     translate(-cx, -cy);
     noStroke();
-    fill(180, 180, 220, 180);
+    fill(235, 180);
     ellipse(cx, cy, size, size);
     drawInkCircleOutline(cx, cy, size / 2, 120, 3 / circleZoom, 102);
     pop();
@@ -252,10 +253,10 @@ function draw() {
     translate(cx, cy);
     scale(wordZoom);
     translate(-cx, -cy);
-    textSize(46);
+    textSize(44);
     const specBaselineY = cy + (textAscent() - textDescent()) / 2;
     textAlign(CENTER, BASELINE);
-    fill(40);
+    fill(0);
     noStroke();
     text('spec', cx, specBaselineY);
     pop();
@@ -292,7 +293,7 @@ function draw() {
     scale(CIRCLE_ZOOM_MAX);
     translate(-cx, -cy);
     noStroke();
-    fill(180, 180, 220, 180);
+    fill(235, 180);
     ellipse(cx, cy, size, size);
     drawInkCircleOutline(cx, cy, size / 2, 120, 3 / CIRCLE_ZOOM_MAX, 103);
     pop();
@@ -304,14 +305,14 @@ function draw() {
     translate(-cx, -cy);
 
     textAlign(CENTER, CENTER);
-    textSize(46);
-    fill(40);
+    textSize(44);
+    fill(0);
     noStroke();
 
     if (easeWords <= 0) {
       // only three s's splitting at original 's' position in "spec"
       // Keep lowercase 's' consistent with word-building phase
-      textSize(46);
+      textSize(44);
       textAlign(CENTER, CENTER);
       for (let i = 0; i < 3; i++) {
         const y = lerp(cy, linePositions[i].y, easeSplit);
@@ -319,7 +320,7 @@ function draw() {
       }
     } else {
       // words building — left-align so 's' stays at original spec position
-      textSize(46);
+      textSize(44);
       // Smoothly recenter the 3-line block near the end of typing (avoid a sudden snap)
       // Start recentering during the last portion of the word-build phase.
       const RECENTER_START = 0.85; // start when typing progress reaches 85%
@@ -383,7 +384,7 @@ function draw() {
     translate(-cx, -cy);
 
     noStroke();
-    fill(180, 180, 220, 180);
+    fill(235, 180);
     ellipse(cx, cy, size, size);
     drawInkCircleOutline(cx, cy, size / 2, 120, 3 / circleZoom, 104);
     pop();
@@ -393,8 +394,8 @@ function draw() {
     translate(cx, cy);
     scale(wordZoom);
     translate(-cx, -cy);
-    textSize(46);
-    fill(40);
+    textSize(44);
+    fill(0);
     noStroke();
 
     // speck
@@ -415,7 +416,7 @@ function draw() {
   } else if (t < DURATION_ONE + DURATION_ZOOM_IN + DURATION_S_AND_WORDS + DURATION_ZOOM_OUT + DURATION_HOLD) {
     // Phase 5: hold at original scale (1.0x) before Venn split
     noStroke();
-    fill(180, 180, 220, 180);
+    fill(235, 180);
     ellipse(cx, cy, size, size);
     drawInkCircleOutline(cx, cy, size / 2, 120, 3, 105);
 
@@ -425,8 +426,8 @@ function draw() {
     scale(WORD_ZOOM_OUT_END);
     translate(-cx, -cy);
     textAlign(LEFT, CENTER);
-    textSize(46);
-    fill(40);
+    textSize(44);
+    fill(0);
     noStroke();
     text(WORDS[0], centeredLeftX, linePositions[0].y);
     // Inspect (keep 's' fixed)
@@ -450,7 +451,7 @@ function draw() {
 
     // Start from the single (zoomed-out) circle and have it split into three circles.
     // Words follow their corresponding circle as it moves out.
-    const baseColor = [180, 180, 220, 180];
+    const baseColor = [235, 235, 235, 180];
     const textSz = VENN_TEXT_SIZE; // text stays the same while circles scale up
 
     // Compute final exclusive-region offsets + rotations ONCE and cache them to avoid twitches.
@@ -485,7 +486,7 @@ function draw() {
       ellipse(x, y, d, d);
       drawInkCircleOutline(x, y, d / 2, 120 * fade, 3, 200 + i);
 
-      fill(40);
+      fill(0);
       textAlign(CENTER, CENTER);
       textSize(textSz);
       noStroke();
@@ -496,7 +497,7 @@ function draw() {
       //
       // Also, all three words share the same vertical 's' alignment at x = centeredLeftX,
       // but Inspect extends left because \"In\" is right-aligned to that same x.
-      textSize(46);
+      textSize(44);
       const w48 = textWidth(WORDS[i]);
       const inW = textWidth('in');
       const leftWorldX = (i === 1) ? (centeredLeftX - inW) : centeredLeftX; // Inspect vs others
@@ -518,7 +519,7 @@ function draw() {
       const wx = lerp(startWX, targetX, ease);
       const wy = lerp(startWY, targetY, ease);
 
-      fill(40, 40, 40, 255 * fade);
+      fill(0, 255 * fade);
       push();
       translate(wx, wy);
       rotate(theta);
@@ -536,7 +537,7 @@ function draw() {
       fill(...vennColors[i]);
       ellipse(x, y, VENN_SIZE_SCALED, VENN_SIZE_SCALED);
       drawInkCircleOutline(x, y, VENN_SIZE_SCALED / 2, 120, 3, 700 + i);
-      fill(40);
+      fill(0);
       textAlign(CENTER, CENTER);
       textSize(VENN_TEXT_SIZE);
       noStroke();
@@ -561,7 +562,7 @@ function drawInkCircleOutline(cx, cy, r, alpha = 120, weight = 3, seed = 0) {
 
   push();
   noFill();
-  stroke(30, 30, 30, alpha);
+  stroke(0, 0, 0, alpha);
   strokeWeight(weight);
   strokeJoin(ROUND);
   strokeCap(ROUND);
