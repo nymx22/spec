@@ -27,8 +27,16 @@ const VENN_SCALE = 1.7; // circles grow larger during Venn split
 const VENN_SIZE_SCALED = VENN_SIZE * VENN_SCALE;
 const VENN_TEXT_SIZE = 24; // keep text size constant during Venn split
 
-const POST2_DESCRIPTION =
-  "we want to stray from the obvious and popular and focus on things unnoticed, that people forget or take for granted.";
+// Post 2 "definition sentence" (currently disabled per request).
+// const POST2_DESCRIPTION =
+//   "we want to stray from the obvious and popular and focus on things unnoticed, that people forget or take for granted.";
+const POST2_DESCRIPTION = "";
+const POST2_SHOW_DESCRIPTION = false;
+
+const POST2_FRAME5_EPILOGUE =
+  "Text flashes on-screen for a single frame, then leaves only a faint afterglow that slowly dims.\n" +
+  "You caught it but almost didn't.\n" +
+  "Plays with the threshold between noticed and unnoticed — like the things this project is about.";
 
 let uiFont;
 let cachedFinalLayouts = null;
@@ -72,10 +80,9 @@ let inkStartMs = 0;
 let descStartMs = 0;
 let inkDone = false;
 let inkLastAddMs = 0;
-let descPusherBodies = null; // Matter bodies (segmented pusher)
-let descPusherSpec = null;
 let post2SolidInkG = null;
 let post2Sediment = null;
+let post2Frame5Epilogue = null; // { settleFrames, flashFrame, startMs }
 
 // Export recording (MP4 when supported; otherwise WebM)
 let recordBtn;
@@ -319,108 +326,6 @@ function ensureMatterSpeckInitialized(targets, rFinal, labelX, labelY) {
   matterReady = true;
 }
 
-function updateDescPusherFromScreenBox(cam, boxX, boxY, boxW, boxH, grow01, opts) {
-  if (!matterReady || !matterWorld || !matterAvailable()) return;
-  const { World, Bodies, Body } = window.Matter;
-  const o = opts || {};
-
-  const PAD_PX = 38; // increase padding between speck and sentence
-  const wWorld = (boxW + PAD_PX * 2) / cam.zoom;
-  const hWorld = (boxH + PAD_PX * 2) / cam.zoom;
-
-  const cxS = boxX + boxW / 2;
-  const cyS = boxY + boxH / 2;
-  const target = screenToWorld(cxS, cyS, cam);
-
-  // Start below and rise into the sentence area.
-  // We use multiple segments so the pushing front is uneven (less "gliding").
-  if (!descPusherSpec) {
-    // "Pocket pull" feel: start closer so the top emerges early.
-    const start = screenToWorld(cxS, cyS + boxH * 0.72 + 46, cam);
-    descPusherSpec = {
-      wWorld,
-      hWorld,
-      startX: start.x,
-      startY: start.y,
-      targetX: target.x,
-      targetY: target.y,
-      segs: 7,
-      lastW: wWorld,
-      lastH: hWorld,
-      bornMs: millis(),
-    };
-  }
-
-  // If zoom/layout changes a lot, rebuild bodies to keep them stable.
-  const sizeChanged = (Math.abs(wWorld - descPusherSpec.lastW) / Math.max(1, descPusherSpec.lastW) > 0.08) ||
-    (Math.abs(hWorld - descPusherSpec.lastH) / Math.max(1, descPusherSpec.lastH) > 0.08);
-  descPusherSpec.lastW = wWorld;
-  descPusherSpec.lastH = hWorld;
-
-  if (sizeChanged && descPusherBodies && descPusherBodies.length) {
-    for (const b of descPusherBodies) World.remove(matterWorld, b);
-    descPusherBodies = null;
-  }
-
-  if (!descPusherBodies) {
-    const segs = descPusherSpec.segs;
-    const segW = wWorld / segs;
-    descPusherBodies = [];
-    for (let i = 0; i < segs; i++) {
-      const localX = (i + 0.5 - segs / 2) * segW;
-      const bx = descPusherSpec.startX + localX;
-      const by = descPusherSpec.startY;
-      const body = Bodies.rectangle(bx, by, segW * 1.04, hWorld, {
-        isStatic: true,
-        friction: 0.22,
-        restitution: 0,
-      });
-      descPusherBodies.push(body);
-    }
-    World.add(matterWorld, descPusherBodies);
-  }
-
-  // Ragged advance: quantized + noise-wobbled progress per-segment.
-  const baseU = smootherstep(clamp01(grow01));
-  // Pocket pull: accelerate early (top emerges first), then settle.
-  const baseUy = easeOutCubic(baseU);
-  const tMs = millis() - descPusherSpec.bornMs;
-  const wobT = tMs * 0.0022;
-  const segs = descPusherSpec.segs;
-  const segW = wWorld / segs;
-
-  // Low-pass filter the pusher motion to avoid "teleport jitter" in collisions.
-  if (!descPusherSpec.curY || descPusherSpec.curY.length !== segs) {
-    descPusherSpec.curY = new Array(segs).fill(descPusherSpec.startY);
-  }
-
-  for (let i = 0; i < descPusherBodies.length; i++) {
-    const b = descPusherBodies[i];
-    const localX = (i + 0.5 - segs / 2) * segW;
-
-    // Per-segment progress variation (edges lead/lag slightly).
-    const n = noise(i * 0.35 + 10.1, wobT);
-    const roughAmp = (o.roughAmp != null) ? o.roughAmp : 0.12;
-    const rough = (n - 0.5) * roughAmp * (1 - baseU); // smaller roughness to reduce glitchiness
-    let u2 = clamp01(baseU + rough);
-
-    // Slight "stepping" so it feels like erosion/growth instead of a glide.
-    const steps = (o.steps != null) ? o.steps : 40; // finer steps = smoother
-    const uq = Math.floor(u2 * steps) / steps;
-    const stepBlend = (o.stepBlend != null) ? o.stepBlend : 0.85;
-    u2 = lerp(uq, u2, stepBlend);
-
-    const x = lerp(descPusherSpec.startX, descPusherSpec.targetX, baseU) + localX;
-    // Pocket pull: y follows a faster-easing curve than x.
-    const yTarget = lerp(descPusherSpec.startY, descPusherSpec.targetY, easeOutCubic(u2));
-    // Smooth position update (prevents abrupt solver responses).
-    const yLerp = (o.yLerp != null) ? o.yLerp : 0.22;
-    const ySm = lerp(descPusherSpec.curY[i], yTarget, yLerp);
-    descPusherSpec.curY[i] = ySm;
-    Body.setPosition(b, { x, y: ySm });
-  }
-}
-
 function stepMatter(dtMs) {
   if (!matterReady || !matterEngine) return;
   window.Matter.Engine.update(matterEngine, dtMs);
@@ -444,66 +349,18 @@ function drawMatterSpeckLetters() {
   }
 }
 
-function applySpeckBreakthroughFriction(grow01, opts) {
-  if (!matterReady || !speckBodies) return;
-  const t = clamp01(grow01);
-  if (t <= 0) return;
-  const k = easeInOutCubic(t);
-  const o = opts || {};
-
+function speckBodiesSettled() {
+  if (!matterReady || !speckBodies || speckBodies.length === 0) return false;
+  let v = 0;
+  let w = 0;
   for (const l of speckBodies) {
-    const b = l.body;
-    const base = l.base || { friction: SPECK_MATTER.friction, frictionAir: SPECK_MATTER.frictionAir, restitution: SPECK_MATTER.restitution };
-    // Increase damping & surface friction so it feels like "pushing through" resistance.
-    const airT = (o.frictionAirTarget != null) ? o.frictionAirTarget : 0.22;
-    const frT = (o.frictionTarget != null) ? o.frictionTarget : 0.92;
-    const reT = (o.restitutionTarget != null) ? o.restitutionTarget : 0.12;
-    b.frictionAir = lerp(base.frictionAir, airT, k);
-    b.friction = lerp(base.friction, frT, k);
-    b.restitution = lerp(base.restitution, reT, k);
+    const vel = l.body.velocity;
+    v += Math.hypot(vel.x, vel.y);
+    w += Math.abs(l.body.angularVelocity);
   }
-
-  // Add subtle impulse "breakthrough" pops while the pusher is advancing.
-  const doImpulses = (o.impulses != null) ? !!o.impulses : true;
-  if (!doImpulses) return;
-  if (!descPusherBodies || !descPusherBodies.length) return;
-  if (t >= 0.98) return;
-  if (frameCount % 6 !== 0) return; // less frequent = less jitter
-
-  const { Body } = window.Matter;
-  const impulseScale = (o.impulseScale != null) ? o.impulseScale : 1;
-  const impulse = 0.00042 * impulseScale * (0.25 + 0.75 * k);
-
-  for (const l of speckBodies) {
-    const b = l.body;
-    const p = b.position;
-
-    // Find nearest pusher segment by x.
-    let nearest = null;
-    let bestDx = Infinity;
-    for (const pb of descPusherBodies) {
-      const dx = Math.abs(p.x - pb.position.x);
-      if (dx < bestDx) { bestDx = dx; nearest = pb; }
-    }
-    if (!nearest) continue;
-
-    // If the letter is close to the pusher front, add an upward+side impulse.
-    const px = nearest.position.x;
-    const py = nearest.position.y;
-    const bw = nearest.bounds.max.x - nearest.bounds.min.x;
-    const bh = nearest.bounds.max.y - nearest.bounds.min.y;
-    const inX = Math.abs(p.x - px) < bw * 0.55;
-    const inY = p.y > py - bh * 0.9 && p.y < py + bh * 1.2;
-    if (!inX || !inY) continue;
-
-    // Deterministic impulse (noise-driven), avoids per-frame random jitter.
-    const nz = noise(p.x * 0.02 + 3.1, p.y * 0.02 + 7.7, millis() * 0.0006);
-    const side = (nz - 0.5) * 0.7;
-    const up = 0.92 + 0.12 * noise(p.x * 0.01, millis() * 0.0009);
-    Body.applyForce(b, p, { x: impulse * side, y: -impulse * up });
-    // Occasional tiny rotation nudge (noise-gated).
-    if (nz > 0.82) Body.setAngularVelocity(b, b.angularVelocity + (nz - 0.5) * 0.02);
-  }
+  v /= speckBodies.length;
+  w /= speckBodies.length;
+  return v < 0.12 && w < 0.02;
 }
 
 function inkAvailable() {
@@ -609,26 +466,16 @@ function ensurePost2Sediment(p5, targets, rFinal) {
   const g = p5.createGraphics(width, height);
   g.pixelDensity(1);
   g.clear();
-  const maskWorldG = p5.createGraphics(width, height);
-  maskWorldG.pixelDensity(1);
-  maskWorldG.clear();
-  const maskScreenG = p5.createGraphics(width, height);
-  maskScreenG.pixelDensity(1);
-  maskScreenG.clear();
-  const sentenceG = p5.createGraphics(width, height);
-  sentenceG.pixelDensity(1);
-  sentenceG.clear();
-  const sentenceOutG = p5.createGraphics(width, height);
-  sentenceOutG.pixelDensity(1);
-  sentenceOutG.clear();
+  const maskWorldG = POST2_SHOW_DESCRIPTION ? p5.createGraphics(width, height) : null;
+  if (maskWorldG) {
+    maskWorldG.pixelDensity(1);
+    maskWorldG.clear();
+  }
 
   post2Sediment = {
     key,
     g,
     maskWorldG,
-    maskScreenG,
-    sentenceG,
-    sentenceOutG,
     minX,
     minY,
     cell,
@@ -1150,10 +997,9 @@ function draw() {
         matterWorld = null;
         speckBodies = null;
         speckWalls = null;
-        descPusherBodies = null;
-        descPusherSpec = null;
         post2SolidInkG = null;
         post2Sediment = null;
+        post2Frame5Epilogue = null;
         inkStartMs = 0;
         inkLastAddMs = 0;
         inkDone = false;
@@ -1328,67 +1174,9 @@ function draw() {
 
         const cam = { x: camX, y: camY, zoom: camZoom, screenY };
 
-        // Sentence is invisible until accumulation overlays it:
-        // render text in a layer and mask it by the *screen-space* sediment fill mask.
-        if (post2Sediment.maskWorldG && post2Sediment.maskScreenG && post2Sediment.sentenceG && post2Sediment.sentenceOutG) {
-          // Build screen-space mask of filled sediment.
-          post2Sediment.maskScreenG.clear();
-          post2Sediment.maskScreenG.push();
-          post2Sediment.maskScreenG.translate(cx, screenY);
-          post2Sediment.maskScreenG.scale(camZoom);
-          post2Sediment.maskScreenG.translate(-camX, -camY);
-          post2Sediment.maskScreenG.image(post2Sediment.maskWorldG, 0, 0);
-          post2Sediment.maskScreenG.pop();
+        // Post 2 definition sentence disabled (no draw here).
 
-          // Render the sentence (white) in screen coords.
-          post2Sediment.sentenceG.clear();
-          post2Sediment.sentenceG.textAlign(LEFT, TOP);
-          post2Sediment.sentenceG.noStroke();
-          post2Sediment.sentenceG.fill(255);
-          post2Sediment.sentenceG.textSize(16);
-          post2Sediment.sentenceG.textLeading(20);
-          if (uiFont) post2Sediment.sentenceG.textFont(uiFont);
-          post2Sediment.sentenceG.text(POST2_DESCRIPTION, boxX, boxY, boxW, boxH);
-
-          // Mask by sediment fill on screen so it only appears where black has accumulated behind it.
-          const ctxS = post2Sediment.sentenceOutG.drawingContext;
-          ctxS.save();
-          ctxS.globalCompositeOperation = 'source-over';
-          ctxS.clearRect(0, 0, post2Sediment.sentenceOutG.width, post2Sediment.sentenceOutG.height);
-          post2Sediment.sentenceOutG.image(post2Sediment.sentenceG, 0, 0);
-          ctxS.globalCompositeOperation = 'destination-in';
-          post2Sediment.sentenceOutG.image(post2Sediment.maskScreenG, 0, 0);
-          ctxS.globalCompositeOperation = 'source-over';
-          ctxS.restore();
-
-          noTint();
-          image(post2Sediment.sentenceOutG, 0, 0);
-        }
-
-        // Start pushing only after the first sediment impact (first accumulation).
-        if (post2Sediment.startedAtMs) {
-          // Push follows accumulation ONLY.
-          const fillRows = Math.max(0, post2Sediment.bottomRow - post2Sediment.scanRow);
-          // Aim to reach full push once sediment has climbed to the sentence box.
-          const worldBottom = screenToWorld(boxX + boxW / 2, boxY + boxH, cam);
-          const rowBoxBottom = Math.max(0, Math.min(post2Sediment.rows - 1, Math.floor((worldBottom.y - post2Sediment.minY) / post2Sediment.cell)));
-          const targetRows = Math.max(1, post2Sediment.bottomRow - rowBoxBottom + 1);
-          const fillBased = clamp01(fillRows / targetRows);
-          const grow = easeInOutCubic(fillBased);
-
-          updateDescPusherFromScreenBox(cam, boxX, boxY, boxW, boxH, grow, {
-            roughAmp: 0.06,
-            steps: 70,
-            stepBlend: 0.92,
-            yLerp: 0.14,
-          });
-          applySpeckBreakthroughFriction(grow, {
-            impulses: false,
-            frictionAirTarget: 0.12,
-            frictionTarget: 0.62,
-            restitutionTarget: 0.22,
-          });
-        }
+        // Push removed per request.
 
         // Ensure "speck" floats ABOVE the sentence text (draw it last).
         if (matterReady) {
@@ -1398,6 +1186,53 @@ function draw() {
           translate(-camX, -camY);
           drawMatterSpeckLetters();
           pop();
+        }
+
+        // Frame 5 epilogue: after the sediment fill completes AND the speck letters "collapse" (settle),
+        // flash for 1 frame, then leave a faint afterglow that slowly dims.
+        if (galleryFrame === 5 && inkDone && matterReady) {
+          if (!post2Frame5Epilogue) post2Frame5Epilogue = { settleFrames: 0, flashFrame: -1, startMs: 0 };
+
+          if (post2Frame5Epilogue.flashFrame < 0) {
+            if (speckBodiesSettled()) post2Frame5Epilogue.settleFrames++;
+            else post2Frame5Epilogue.settleFrames = 0;
+
+            if (post2Frame5Epilogue.settleFrames >= 12) {
+              post2Frame5Epilogue.flashFrame = frameCount;
+              post2Frame5Epilogue.startMs = millis();
+            }
+          }
+
+          if (post2Frame5Epilogue.flashFrame >= 0) {
+            const isFlash = frameCount === post2Frame5Epilogue.flashFrame;
+            const dt = millis() - post2Frame5Epilogue.startMs;
+            const after = 70 * Math.exp(-dt / 3200);
+            const a = isFlash ? 255 : after;
+
+            if (a > 0.8) {
+              push();
+              textAlign(CENTER, CENTER);
+              if (uiFont) textFont(uiFont);
+              textSize(16);
+              textLeading(22);
+
+              const boxW = Math.min(540, width * 0.86);
+              const x = width / 2;
+              const y = height * 0.28;
+
+              const ctx2 = drawingContext;
+              ctx2.save();
+              ctx2.shadowBlur = isFlash ? 0 : 18;
+              ctx2.shadowColor = `rgba(255,255,255,${Math.min(1, a / 255)})`;
+              noStroke();
+              fill(255, a);
+              text(POST2_FRAME5_EPILOGUE, x, y, boxW, 400);
+              ctx2.restore();
+              pop();
+            }
+
+            if (!isFlash && after < 0.6) noLoop();
+          }
         }
       } else if (done && inkDone && descStartMs) {
         const fade = clamp01((millis() - descStartMs) / 1100);
@@ -1415,30 +1250,30 @@ function draw() {
         const boxYRaw = labelScreenY + 88;
         const boxY = Math.max(margin, Math.min(height - margin - boxH, boxYRaw));
 
-        // Reveal: clean "tree growth" (bottom->top clip). No erosion texture on the text.
         {
           const grow = easeInOutCubic(fade);
-          const clipH = Math.max(1, boxH * grow);
-          const clipY = boxY + boxH - clipH;
 
-          drawingContext.save();
-          drawingContext.beginPath();
-          drawingContext.rect(boxX, clipY, boxW, clipH);
-          drawingContext.clip();
+          if (POST2_SHOW_DESCRIPTION) {
+            // Reveal: clean "tree growth" (bottom->top clip). No erosion texture on the text.
+            const clipH = Math.max(1, boxH * grow);
+            const clipY = boxY + boxH - clipH;
 
-          textAlign(LEFT, TOP);
-          fill(255, 255 * a);
-          noStroke();
-          textSize(16);
-          textLeading(20);
-          text(POST2_DESCRIPTION, boxX, boxY, boxW, boxH);
+            drawingContext.save();
+            drawingContext.beginPath();
+            drawingContext.rect(boxX, clipY, boxW, clipH);
+            drawingContext.clip();
 
-          drawingContext.restore();
+            textAlign(LEFT, TOP);
+            fill(255, 255 * a);
+            noStroke();
+            textSize(16);
+            textLeading(20);
+            text(POST2_DESCRIPTION, boxX, boxY, boxW, boxH);
 
-          // Push the speck letters up with padding as the sentence emerges.
-          const cam = { x: camX, y: camY, zoom: camZoom, screenY };
-          updateDescPusherFromScreenBox(cam, boxX, boxY, boxW, boxH, grow);
-          applySpeckBreakthroughFriction(grow);
+            drawingContext.restore();
+          }
+
+          // Push removed per request.
         }
 
         // Ensure "speck" floats ABOVE the sentence text (draw it last).
@@ -1494,18 +1329,7 @@ function draw() {
     }
     pop();
 
-    // After the motion completes (frame 3), show the description text.
-    if (galleryFrame === 4 && transitionDone) {
-      const margin = 28;
-      const boxW = width - margin * 2;
-      const boxH = Math.min(240, height * 0.34);
-      textAlign(LEFT, TOP);
-      fill(0);
-      noStroke();
-      textSize(16);
-      textLeading(20);
-      text(POST2_DESCRIPTION, margin, margin, boxW, boxH);
-    }
+    // Post 2 definition sentence disabled.
     return;
   }
 
