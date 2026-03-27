@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>media_motion_01 — spec</title>
+  <style>
+    @font-face {
+      font-family: "genwanlatin";
+      font-weight: 400;
+      font-style: normal;
+      src: url("https://freight.cargo.site/m/K2650652186881166999210129014453/genwan_latin_092725_1-r-webfont.woff2") format("woff2");
+    }
+    @font-face {
+      font-family: "GenWanMin2TC";
+      font-weight: 400;
+      font-style: normal;
+      src: url("https://freight.cargo.site/m/E2539229496219093883906941173429/GenWanMin2TC-R.woff2") format("woff2");
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      background: #0a0a0a;
+      color: #fff;
+      font-family: "GenWanMin2TC", serif;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── header ── */
+    header {
+      padding: 2rem 2.8rem;
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      border-bottom: 0.5px solid rgba(255,255,255,0.08);
+    }
+
+    .breadcrumb {
+      display: flex;
+      align-items: baseline;
+      gap: 0.6rem;
+      font-size: 0.85rem;
+      letter-spacing: 0.06em;
+    }
+
+    .breadcrumb a {
+      font-family: "genwanlatin", serif;
+      font-size: 1.1rem;
+      color: #fff;
+      text-decoration: none;
+      opacity: 0.5;
+      transition: opacity 0.15s;
+    }
+    .breadcrumb a:hover { opacity: 1; }
+
+    .breadcrumb-sep {
+      opacity: 0.2;
+      font-size: 0.75rem;
+    }
+
+    .breadcrumb-current {
+      font-family: "genwanlatin", serif;
+      font-size: 1.1rem;
+      opacity: 0.9;
+    }
+
+    /* ── project header ── */
+    .project-header {
+      padding: 4rem 2.8rem 3rem;
+      border-bottom: 0.5px solid rgba(255,255,255,0.08);
+    }
+
+    .project-id {
+      font-size: 0.72rem;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      opacity: 0.3;
+      margin-bottom: 0.8rem;
+    }
+
+    .project-title {
+      font-family: "genwanlatin", serif;
+      font-size: clamp(2.2rem, 5vw, 4.2rem);
+      line-height: 1;
+      letter-spacing: 0.01em;
+    }
+
+    .project-meta {
+      margin-top: 1.8rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 2.5rem;
+    }
+
+    .meta-item {
+      display: flex;
+      flex-direction: column;
+      gap: 0.3rem;
+    }
+
+    .meta-label {
+      font-size: 0.68rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      opacity: 0.3;
+    }
+
+    .meta-value {
+      font-size: 0.88rem;
+      opacity: 0.75;
+      line-height: 1.5;
+    }
+
+    /* ── brief ── */
+    .brief {
+      padding: 3rem 2.8rem;
+      border-bottom: 0.5px solid rgba(255,255,255,0.08);
+      display: flex;
+      justify-content: center;
+    }
+
+    .brief p {
+      font-size: 1.05rem;
+      line-height: 1.75;
+      opacity: 0.6;
+      max-width: 52rem;
+      text-align: center;
+    }
+
+    /* ── assets grid ── */
+    .assets-section {
+      padding: 3rem 0 5rem;
+    }
+
+    .section-label {
+      font-size: 0.72rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      opacity: 0.3;
+      margin-bottom: 2rem;
+      text-align: center;
+    }
+
+    /* ── two-column groups layout ── */
+    .asset-groups {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.5px;
+      background: rgba(255,255,255,0.07);
+      border-top: 0.5px solid rgba(255,255,255,0.07);
+    }
+
+    /* ── category grouping ── */
+    .asset-group {
+      background: #0a0a0a;
+    }
+
+    .group-label {
+      font-size: 0.68rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      opacity: 0.22;
+      padding: 1.2rem 2.8rem 0.9rem;
+      border-bottom: 0.5px solid rgba(255,255,255,0.07);
+    }
+
+    .asset-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5px;
+      background: rgba(255,255,255,0.07);
+    }
+
+    .asset-card {
+      background: #0a0a0a;
+      padding: 1.6rem 2.8rem;
+      text-decoration: none;
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+      transition: background 0.15s;
+      position: relative;
+    }
+
+    .asset-card:hover { background: #111; }
+
+    .asset-card-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 0.8rem;
+    }
+
+    .asset-name {
+      font-family: "genwanlatin", serif;
+      font-size: 1.05rem;
+      letter-spacing: 0.01em;
+      line-height: 1.25;
+    }
+
+    .asset-status {
+      font-size: 0.62rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      padding: 0.15rem 0.6rem 0.18rem;
+      border-radius: 999px;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .status-live {
+      background: rgba(255,255,255,0.07);
+      color: rgba(255,255,255,0.6);
+    }
+
+    .status-dev {
+      background: rgba(255,200,80,0.1);
+      color: rgba(255,200,80,0.65);
+    }
+
+    .status-wip {
+      background: rgba(120,180,255,0.1);
+      color: rgba(120,180,255,0.65);
+    }
+
+    .asset-desc {
+      font-size: 0.8rem;
+      opacity: 0.38;
+      line-height: 1.55;
+    }
+
+    .asset-arrow {
+      position: absolute;
+      bottom: 1.4rem;
+      right: 1.8rem;
+      font-size: 0.75rem;
+      opacity: 0;
+      transition: opacity 0.15s, transform 0.15s;
+    }
+
+    .asset-card:hover .asset-arrow {
+      opacity: 0.5;
+      transform: translate(2px, -2px);
+    }
+
+    /* ── footer ── */
+    footer {
+      padding: 1.6rem 2.8rem;
+      border-top: 0.5px solid rgba(255,255,255,0.08);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.72rem;
+      opacity: 0.25;
+      letter-spacing: 0.08em;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="breadcrumb">
+      <a href="../index.html">spec</a>
+      <span class="breadcrumb-sep">/</span>
+      <span class="breadcrumb-current">media_motion_01</span>
+    </div>
+  </header>
+
+  <div class="project-header">
+    <p class="project-id">project 01</p>
+    <h1 class="project-title">media_motion_01</h1>
+    <div class="project-meta">
+      <div class="meta-item">
+        <span class="meta-label">type</span>
+        <span class="meta-value">motion study</span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">stack</span>
+        <span class="meta-value">p5.js · Matter.js · LiquidFun</span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">output</span>
+        <span class="meta-value">web · video · TouchDesigner</span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">status</span>
+        <span class="meta-value">in development</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="brief">
+    <p>Venn diagram animation — physics-based typography where the word "speck" falls and disintegrates into fluid-like particles upon collision. Exploring the threshold between rigid body and fluid simulation as a typographic gesture.</p>
+  </div>
+
+  <section class="assets-section">
+    <p class="section-label">motion assets</p>
+
+    <div class="asset-groups">
+
+      <!-- ── Production ── -->
+      <div class="asset-group">
+        <p class="group-label">production</p>
+        <div class="asset-list">
+
+          <a class="asset-card" href="../motion asset/post2.html">
+            <div class="asset-card-top">
+              <span class="asset-name">post2</span>
+              <span class="asset-status status-live">live</span>
+            </div>
+            <span class="asset-desc">Main gallery frames — Venn diagram with Matter.js speck physics, ink blob, frame transitions.</span>
+            <span class="asset-arrow">↗</span>
+          </a>
+
+          <a class="asset-card" href="../motion asset/post1.html">
+            <div class="asset-card-top">
+              <span class="asset-name">post1</span>
+              <span class="asset-status status-live">live</span>
+            </div>
+            <span class="asset-desc">Earlier Venn animation frame — p5.js sketch, base composition.</span>
+            <span class="asset-arrow">↗</span>
+          </a>
+
+        </div>
+      </div>
+
+      <!-- ── Testing phases ── -->
+      <div class="asset-group">
+        <p class="group-label">testing</p>
+        <div class="asset-list">
+
+          <a class="asset-card" href="../motion asset/liquidfun-phases/phase-3-speckliquid-world-only.html">
+            <div class="asset-card-top">
+              <span class="asset-name">phase 3 — world only</span>
+              <span class="asset-status status-dev">dev</span>
+            </div>
+            <span class="asset-desc">speckLiquidFun module running in isolation — particles, gravity, walls. No Matter.js.</span>
+            <span class="asset-arrow">↗</span>
+          </a>
+
+          <a class="asset-card" href="../motion asset/liquidfun-phases/phase-4-break-one-glyph-no-collision.html">
+            <div class="asset-card-top">
+              <span class="asset-name">phase 4 — break one glyph</span>
+              <span class="asset-status status-wip">wip</span>
+            </div>
+            <span class="asset-desc">Single glyph disintegration — silhouette fades as particles break free. Fluid physics tuning.</span>
+            <span class="asset-arrow">↗</span>
+          </a>
+
+        </div>
+      </div>
+
+    </div>
+
+  </section>
+
+  <footer>
+    <span>spec — media brand design</span>
+    <span>media_motion_01</span>
+  </footer>
+
+</body>
+</html>

@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Phase 1 - LiquidFun smoke</title>
+  <style>
+    body { font: 14px/1.4 system-ui, sans-serif; margin: 24px; max-width: 42rem; }
+    pre { background: #f4f4f4; padding: 12px; overflow: auto; }
+  </style>
+</head>
+<body>
+  <h1>Phase 1 - LiquidFun smoke test</h1>
+  <p>Loads only <code>../lib/liquidfun.js</code> and checks world creation.</p>
+  <pre id="out">Running...</pre>
+
+  <script>window.__lfSmokeStart = performance.now();</script>
+  <script src="../lib/liquidfun.js"></script>
+  <script>
+    (function () {
+      var elapsed = performance.now() - window.__lfSmokeStart;
+      var LF = window.liquidfun;
+      var hasWorld = !!(LF && typeof LF.b2World === 'function');
+      var line =
+        'Elapsed (download + parse + run): ' + elapsed.toFixed(1) + ' ms\n' +
+        'window.liquidfun: ' + !!LF + '\n' +
+        'liquidfun.b2World: ' + hasWorld + '\n';
+      if (LF && hasWorld) {
+        try {
+          var w = new LF.b2World(new LF.b2Vec2(0, -10));
+          line += 'new b2World(): OK (ptr ' + (w && w.ptr ? 'set' : 'missing') + ')\n';
+        } catch (e) {
+          line += 'new b2World(): FAIL - ' + e + '\n';
+        }
+      }
+      document.getElementById('out').textContent = line;
+      console.log('[phase-1-liquidfun-smoke]', { ms: +elapsed.toFixed(1), liquidfun: !!LF, b2World: hasWorld });
+    })();
+  </script>
+</body>
+</html>

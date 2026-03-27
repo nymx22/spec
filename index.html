@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>spec — media brand design</title>
+  <style>
+    @font-face {
+      font-family: "genwanlatin";
+      font-weight: 400;
+      font-style: normal;
+      src: url("https://freight.cargo.site/m/K2650652186881166999210129014453/genwan_latin_092725_1-r-webfont.woff2") format("woff2");
+    }
+    @font-face {
+      font-family: "GenWanMin2TC";
+      font-weight: 400;
+      font-style: normal;
+      src: url("https://freight.cargo.site/m/E2539229496219093883906941173429/GenWanMin2TC-R.woff2") format("woff2");
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
+      background: #0a0a0a;
+      color: #fff;
+      font-family: "GenWanMin2TC", serif;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    body {
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+
+    /* ── header ── */
+    header {
+      padding: 2rem 2.8rem 0;
+      display: flex;
+      align-items: baseline;
+      gap: 2rem;
+    }
+
+    .brand {
+      font-family: "genwanlatin", serif;
+      font-size: 1.6rem;
+      letter-spacing: 0.04em;
+      color: #fff;
+      text-decoration: none;
+    }
+
+    nav {
+      display: flex;
+      gap: 1.6rem;
+      font-size: 0.88rem;
+      letter-spacing: 0.08em;
+      opacity: 0.55;
+    }
+
+    nav a {
+      color: #fff;
+      text-decoration: none;
+      transition: opacity 0.15s;
+    }
+
+    nav a:hover { opacity: 1; }
+
+    /* ── hero ── */
+    .hero {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      padding: 0 2.8rem 3.2rem;
+    }
+
+    .hero-label {
+      font-size: 0.75rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      opacity: 0.38;
+      margin-bottom: 1rem;
+    }
+
+    .hero-title {
+      font-family: "genwanlatin", serif;
+      font-size: clamp(4rem, 10vw, 9.5rem);
+      line-height: 0.94;
+      letter-spacing: -0.01em;
+      color: #fff;
+    }
+
+    .hero-sub {
+      margin-top: 1.4rem;
+      font-size: 0.9rem;
+      letter-spacing: 0.06em;
+      opacity: 0.45;
+      max-width: 32rem;
+      line-height: 1.65;
+    }
+
+    /* ── project grid ── */
+    .projects-section {
+      padding: 0 2.8rem 5rem;
+    }
+
+    .section-label {
+      font-size: 0.72rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      opacity: 0.35;
+      margin-bottom: 2rem;
+      padding-top: 3.5rem;
+      border-top: 0.5px solid rgba(255,255,255,0.1);
+    }
+
+    .project-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 1px;
+      background: rgba(255,255,255,0.08);
+      border: 0.5px solid rgba(255,255,255,0.08);
+    }
+
+    .project-card {
+      background: #0a0a0a;
+      padding: 2rem 1.8rem 2.2rem;
+      text-decoration: none;
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      gap: 0.6rem;
+      transition: background 0.18s;
+      position: relative;
+    }
+
+    .project-card:hover {
+      background: #131313;
+    }
+
+    .project-id {
+      font-size: 0.7rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      opacity: 0.3;
+    }
+
+    .project-name {
+      font-family: "genwanlatin", serif;
+      font-size: 1.5rem;
+      letter-spacing: 0.01em;
+      line-height: 1.2;
+    }
+
+    .project-desc {
+      font-size: 0.82rem;
+      opacity: 0.45;
+      line-height: 1.6;
+      margin-top: 0.3rem;
+    }
+
+    .project-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      margin-top: auto;
+      padding-top: 1.2rem;
+    }
+
+    .tag {
+      font-size: 0.68rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      opacity: 0.4;
+      border: 0.5px solid rgba(255,255,255,0.22);
+      border-radius: 999px;
+      padding: 0.15rem 0.65rem 0.2rem;
+    }
+
+    .project-arrow {
+      position: absolute;
+      top: 2rem;
+      right: 1.8rem;
+      opacity: 0.2;
+      font-size: 0.85rem;
+      transition: opacity 0.15s, transform 0.15s;
+    }
+
+    .project-card:hover .project-arrow {
+      opacity: 0.7;
+      transform: translate(3px, -3px);
+    }
+
+    /* ── footer ── */
+    footer {
+      padding: 1.6rem 2.8rem;
+      border-top: 0.5px solid rgba(255,255,255,0.08);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.72rem;
+      opacity: 0.28;
+      letter-spacing: 0.08em;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <a class="brand" href="index.html">spec</a>
+    <nav>
+      <a href="#">work</a>
+      <a href="#">about</a>
+    </nav>
+  </header>
+
+  <section class="hero">
+    <p class="hero-label">media brand design</p>
+    <h1 class="hero-title">spec</h1>
+    <p class="hero-sub">Motion, type, and system — built for screen and output.</p>
+  </section>
+
+  <section class="projects-section">
+    <p class="section-label">projects</p>
+    <div class="project-grid">
+
+      <a class="project-card" href="media_motion_01/index.html">
+        <span class="project-id">01</span>
+        <span class="project-name">media_motion_01</span>
+        <span class="project-desc">Venn diagram motion study — physics-based typography with particle disintegration. p5.js + Matter.js + LiquidFun.</span>
+        <div class="project-tags">
+          <span class="tag">motion</span>
+          <span class="tag">typography</span>
+          <span class="tag">physics</span>
+          <span class="tag">interactive</span>
+        </div>
+        <span class="project-arrow">↗</span>
+      </a>
+
+    </div>
+  </section>
+
+  <footer>
+    <span>spec</span>
+    <span>media brand design</span>
+  </footer>
+
+</body>
+</html>

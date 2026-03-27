@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Phase 4 - Break one glyph (no collision)</title>
+  <style>
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: #f2f2f2;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 16px;
+      font: 14px/1.35 system-ui, sans-serif;
+      color: #333;
+    }
+    .row { display: flex; gap: 8px; align-items: center; }
+    button { padding: 8px 10px; border: 1px solid #ccc; border-radius: 8px; background: #fff; cursor: pointer; }
+    input { width: 48px; padding: 6px; border: 1px solid #ccc; border-radius: 6px; }
+    main { display: block; }
+  </style>
+</head>
+<body>
+  <div class="row">
+    <button id="breakBtn" type="button">Break Glyph</button>
+    <button id="resetBtn" type="button">Reset</button>
+    <label>Glyph <input id="glyphInput" maxlength="1" value="S" /></label>
+  </div>
+  <main></main>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.8.0/p5.js"></script>
+  <script src="../lib/liquidfun.js"></script>
+  <script>
+    // Match current "liquid world only" test variables in speckLiquidFun.initDemoWorld.
+    var CFG = {
+      gravityY: 25,
+      radius: 3.2,
+      dampingStrength: 0.6,
+      viscousStrength: 0.2,
+      elasticStrength: 0.01,
+      springStrength: 0.01,
+      repulsiveStrength: 0.0,
+      pressureStrength: 0.04,
+      powderStrength: 0.2,
+      surfaceTensionNormalStrength: 0.02,
+      surfaceTensionPressureStrength: 0.02,
+      setDamping: 0.72,
+      wallFriction: 0.35,
+      wallRestitution: 0.20,
+      stepVelIters: 17,
+      stepPosIters: 6,
+      simSpeed: 5,
+      airDrag: 0.005,
+      upwardExtraDrag: 0.02,
+    };
+
+    var world;
+    var particleSystem;
+    var phase4 = {
+      wallsReady: false,
+      cx: 0,
+      cy: 0,
+      r: 0,
+      glyph: 'S',
+      glyphCenterX: 0,
+      glyphCenterY: 0,
+      glyphPoints: [],
+      glyphEmitIndex: 0,
+      isBreaking: false,
+      silhouetteAlpha: 255,
+    };
+
+    function setup() {
+      var cnv = createCanvas(540, 540);
+      var mainEl = document.querySelector('main');
+      if (mainEl && cnv && cnv.parent) cnv.parent(mainEl);
+      initWorld();
+      wireUI();
+      prepareGlyph(getGlyph());
+    }
+
+    function initWorld() {
+      var LF = window.liquidfun;
+      // Start with no gravity so pre-spawned particles stay under silhouette until "Break Glyph".
+      world = new LF.b2World(new LF.b2Vec2(0, 0));
+      var psd = new LF.b2ParticleSystemDef();
+      psd.radius = CFG.radius;
+      psd.dampingStrength = CFG.dampingStrength;
+      psd.viscousStrength = CFG.viscousStrength;
+      psd.elasticStrength = CFG.elasticStrength;
+      psd.springStrength = CFG.springStrength;
+      psd.repulsiveStrength = CFG.repulsiveStrength;
+      psd.pressureStrength = CFG.pressureStrength;
+      psd.powderStrength = CFG.powderStrength;
+      psd.surfaceTensionNormalStrength = CFG.surfaceTensionNormalStrength;
+      psd.surfaceTensionPressureStrength = CFG.surfaceTensionPressureStrength;
+      particleSystem = world.CreateParticleSystem(psd);
+      particleSystem.SetDamping(CFG.setDamping);
+      particleSystem.SetRadius(CFG.radius);
+
+      phase4.cx = width / 2;
+      phase4.cy = height / 2;
+      phase4.r = Math.min(width, height) * 0.38;
+      addCircleWall(phase4.cx, phase4.cy, phase4.r);
+      phase4.wallsReady = true;
+    }
+
+    function addCircleWall(cx, cy, r) {
+      var LF = window.liquidfun;
+      var chain = new LF.b2ChainShape();
+      var segs = 56;
+      for (var i = 0; i < segs; i++) {
+        var a = (i / segs) * Math.PI * 2;
+        var x = cx + Math.cos(a) * r;
+        var y = cy + Math.sin(a) * r;
+        chain.vertices.push(new LF.b2Vec2(x, -y));
+      }
+      chain.CreateLoop();
+      var bd = new LF.b2BodyDef();
+      bd.position = new LF.b2Vec2(0, 0);
+      var body = world.CreateBody(bd);
+      var fd = new LF.b2FixtureDef();
+      fd.shape = chain;
+      fd.friction = CFG.wallFriction;
+      fd.restitution = CFG.wallRestitution;
+      fd.density = 0;
+      window.world = world;
+      body.CreateFixtureFromDef(fd);
+    }
+
+    function getGlyph() {
+      var v = (document.getElementById('glyphInput').value || 'S').trim();
+      return v.length ? v[0] : 'S';
+    }
+
+    function buildGlyphPoints(ch) {
+      if (!phase4.wallsReady) return;
+      var g = createGraphics(170, 170);
+      g.pixelDensity(1);
+      g.clear();
+      g.noStroke();
+      g.fill(255);
+      g.textAlign(CENTER, CENTER);
+      g.textSize(124);
+      g.textStyle(BOLD);
+      g.text(ch, g.width / 2, g.height / 2 + 6);
+      g.loadPixels();
+
+      var centerX = phase4.cx;
+      var centerY = phase4.cy - phase4.r * 0.34;
+      var step = 4;
+      var threshold = 180;
+      var pts = [];
+
+      for (var y = 0; y < g.height; y += step) {
+        for (var x = 0; x < g.width; x += step) {
+          var idx = (y * g.width + x) * 4 + 3;
+          if (g.pixels[idx] < threshold) continue;
+          var wx = centerX + (x - g.width / 2);
+          var wy = centerY + (y - g.height / 2);
+          pts.push({ x: wx, y: wy });
+        }
+      }
+      return pts;
+    }
+
+    function shuffleArray(arr) {
+      for (var i = arr.length - 1; i > 0; i--) {
+        var j = (Math.random() * (i + 1)) | 0;
+        var t = arr[i];
+        arr[i] = arr[j];
+        arr[j] = t;
+      }
+    }
+
+    function prepareGlyph(ch) {
+      phase4.glyph = ch;
+      phase4.glyphCenterX = phase4.cx;
+      phase4.glyphCenterY = phase4.cy - phase4.r * 0.34;
+      phase4.glyphPoints = buildGlyphPoints(ch) || [];
+      shuffleArray(phase4.glyphPoints);
+      phase4.glyphEmitIndex = phase4.glyphPoints.length;
+      phase4.isBreaking = false;
+      phase4.silhouetteAlpha = 255;
+      spawnGlyphParticlesStatic();
+    }
+
+    function startGlyphDisintegration(ch) {
+      if (ch !== phase4.glyph) prepareGlyph(ch);
+      phase4.isBreaking = true;
+      releasePreSpawnedParticles();
+    }
+
+    function spawnGlyphParticlesStatic() {
+      if (!particleSystem) return;
+      var LF = window.liquidfun;
+      var pd = new LF.b2ParticleDef();
+      pd.flags = LF.b2_waterParticle;
+      pd.group = 0;
+      pd.lifetime = 0;
+      pd.userData = 0;
+      pd.color = new LF.b2ParticleColor(255, 255, 255, 255);
+      for (var i = 0; i < phase4.glyphPoints.length; i++) {
+        var p = phase4.glyphPoints[i];
+        pd.position = new LF.b2Vec2(p.x, -p.y);
+        pd.velocity = new LF.b2Vec2(0, 0);
+        particleSystem.CreateParticle(pd);
+      }
+    }
+
+    function releasePreSpawnedParticles() {
+      if (!world || !particleSystem) return;
+      // Enable gravity only after break.
+      world.SetGravity(new window.liquidfun.b2Vec2(0, -CFG.gravityY));
+      var vel = particleSystem.GetVelocityBuffer();
+      if (!vel || vel.length < 2) return;
+      for (var i = 0; i < vel.length; i += 2) {
+        // Small horizontal variance + downward kick (Box2D y-up => negative is down).
+        vel[i] = random(-0.65, 0.65);
+        vel[i + 1] = random(-0.85, -0.25);
+      }
+    }
+
+    function resetScene() {
+      initWorld();
+      prepareGlyph(getGlyph());
+    }
+
+    function wireUI() {
+      document.getElementById('breakBtn').addEventListener('click', function () {
+        startGlyphDisintegration(getGlyph());
+      });
+      document.getElementById('resetBtn').addEventListener('click', function () {
+        resetScene();
+      });
+    }
+
+    function draw() {
+      background(245);
+      fill(0);
+      stroke(0);
+      strokeWeight(2);
+      circle(phase4.cx, phase4.cy, phase4.r * 2);
+      if (phase4.isBreaking) {
+        phase4.silhouetteAlpha = Math.max(0, phase4.silhouetteAlpha - 4);
+      }
+
+      if (world && particleSystem) {
+        for (var s = 0; s < CFG.simSpeed; s++) {
+          world.Step(1 / 60, CFG.stepVelIters, CFG.stepPosIters);
+          if (CFG.airDrag > 0 || CFG.upwardExtraDrag > 0) {
+            var v = particleSystem.GetVelocityBuffer();
+            if (v && v.length >= 2) {
+              for (var vi = 0; vi < v.length; vi += 2) {
+                // Box2D Y-up: positive vy is upward.
+                var extra = v[vi + 1] > 0 ? CFG.upwardExtraDrag : 0;
+                var mul = Math.max(0, 1 - CFG.airDrag - extra);
+                v[vi] *= mul;
+                v[vi + 1] *= mul;
+              }
+            }
+          }
+        }
+        var pos = particleSystem.GetPositionBuffer();
+        var vel = particleSystem.GetVelocityBuffer();
+        var r = particleSystem.radius;
+
+        noStroke();
+        for (var i = 0; i < pos.length; i += 2) {
+          var sx = pos[i];
+          var sy = -pos[i + 1];
+          var speed = Math.hypot(vel[i], vel[i + 1]);
+          fill(255, constrain(190 + speed * 25, 180, 255));
+          circle(sx, sy, r * 2);
+        }
+      }
+
+      // Layer order: background/circle -> particles -> silhouette (top).
+      if (phase4.silhouetteAlpha > 0) {
+        var alpha = phase4.silhouetteAlpha;
+        textAlign(CENTER, CENTER);
+        textStyle(BOLD);
+        textSize(124);
+        stroke(0, Math.min(255, alpha + 30));
+        strokeWeight(3);
+        fill(80, 170, 255, alpha);
+        text(phase4.glyph, phase4.glyphCenterX, phase4.glyphCenterY + 6);
+      }
+    }
+  </script>
+</body>
+</html>

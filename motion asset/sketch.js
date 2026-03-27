@@ -33,11 +33,6 @@ const VENN_TEXT_SIZE = 24; // keep text size constant during Venn split
 const POST2_DESCRIPTION = "";
 const POST2_SHOW_DESCRIPTION = false;
 
-const POST2_FRAME5_EPILOGUE =
-  "Text flashes on-screen for a single frame, then leaves only a faint afterglow that slowly dims.\n" +
-  "You caught it but almost didn't.\n" +
-  "Plays with the threshold between noticed and unnoticed — like the things this project is about.";
-
 let uiFont;
 let cachedFinalLayouts = null;
 let cachedFinalLayoutsKey = '';
@@ -82,7 +77,8 @@ let inkDone = false;
 let inkLastAddMs = 0;
 let post2SolidInkG = null;
 let post2Sediment = null;
-let post2Frame5Epilogue = null; // { settleFrames, flashFrame, startMs }
+let frame5FlashFrame = -1;
+let frame5AfterglowStartMs = 0;
 
 // Export recording (MP4 when supported; otherwise WebM)
 let recordBtn;
@@ -118,6 +114,8 @@ function setup() {
   cnv = createCanvas(600, 750);
   const mainEl = (typeof document !== 'undefined') ? document.querySelector('main') : null;
   if (mainEl && cnv?.parent) cnv.parent(mainEl);
+  // Allow native context menu on the canvas (Inspect, etc.). p5/WebGL helpers may disable it.
+  if (cnv?.elt) cnv.elt.oncontextmenu = null;
 
   if (uiFont) textFont(uiFont);
   staticFinalMode = !!(typeof window !== 'undefined' && window.__SPEC_STATIC_FINAL__ === true);
@@ -331,36 +329,34 @@ function stepMatter(dtMs) {
   window.Matter.Engine.update(matterEngine, dtMs);
 }
 
-function drawMatterSpeckLetters() {
+function drawMatterSpeckLetters(fx) {
   if (!matterReady || !speckBodies) return;
   textSize(VENN_TEXT_SIZE);
   textAlign(CENTER, CENTER);
+  const flashA = fx?.flashA || 0;
+  const glowA = fx?.glowA || 0;
   for (const l of speckBodies) {
     const p = l.body.position;
     push();
     translate(p.x, p.y);
     rotate(l.body.angle);
     // Physics should only act on the white "speck" letters.
-    fill(255);
-    stroke(0, 90);
-    strokeWeight(1);
+    const ctx = drawingContext;
+    if (glowA > 0.5) {
+      // Negative color glow for white text => black glow.
+      ctx.save();
+      ctx.shadowColor = `rgba(0,0,0,${Math.min(0.35, glowA / 255)})`;
+      ctx.shadowBlur = 16;
+      ctx.shadowOffsetX = 0;
+      ctx.shadowOffsetY = 0;
+    }
+    fill(255, Math.max(220, flashA > 0 ? 255 : 220));
+    stroke(0, flashA > 0 ? 120 : 90);
+    strokeWeight(flashA > 0 ? 1.25 : 1);
     text(l.ch, 0, 0);
+    if (glowA > 0.5) ctx.restore();
     pop();
   }
-}
-
-function speckBodiesSettled() {
-  if (!matterReady || !speckBodies || speckBodies.length === 0) return false;
-  let v = 0;
-  let w = 0;
-  for (const l of speckBodies) {
-    const vel = l.body.velocity;
-    v += Math.hypot(vel.x, vel.y);
-    w += Math.abs(l.body.angularVelocity);
-  }
-  v /= speckBodies.length;
-  w /= speckBodies.length;
-  return v < 0.12 && w < 0.02;
 }
 
 function inkAvailable() {
@@ -713,6 +709,7 @@ function isFrame4DraggableActive() {
 }
 
 function mousePressed() {
+  if (mouseButton === RIGHT || mouseButton === 'right') return true;
   if (!isFrame4DraggableActive() || !speckLetters) return;
   const m = screenToWorld(mouseX, mouseY, frame4Cam);
   textSize(VENN_TEXT_SIZE);
@@ -896,6 +893,16 @@ function computeExclusiveLabelLayout(centers, r, words, textPx) {
   return layouts;
 }
 
+function getFrame5SpeckFx() {
+  if (!frame5AfterglowStartMs) return null;
+  const isFlashFrame = frameCount === frame5FlashFrame;
+  const dt = millis() - frame5AfterglowStartMs;
+  const flashA = isFlashFrame ? 255 : 0;
+  const glowA = Math.max(0, 46 * Math.exp(-dt / 3200));
+  if (flashA <= 0 && glowA <= 0.4) return null;
+  return { flashA, glowA };
+}
+
 function draw() {
   background(255);
 
@@ -999,7 +1006,8 @@ function draw() {
         speckWalls = null;
         post2SolidInkG = null;
         post2Sediment = null;
-        post2Frame5Epilogue = null;
+        frame5FlashFrame = -1;
+        frame5AfterglowStartMs = 0;
         inkStartMs = 0;
         inkLastAddMs = 0;
         inkDone = false;
@@ -1098,6 +1106,12 @@ function draw() {
             noTint();
             image(renderSolidSpeckExclusive(this, curTargets, rFinal), 0, 0);
           }
+
+          // Frame 5: blink-and-miss "speck" flash when sediment first starts accumulating.
+          if (post2Sediment?.startedAtMs && !frame5AfterglowStartMs) {
+            frame5AfterglowStartMs = millis();
+            frame5FlashFrame = frameCount; // exactly one frame
+          }
         } else {
           // Original ink blob fill (Frame 4)
           if (!inkDone && inkAvailable()) {
@@ -1130,13 +1144,14 @@ function draw() {
       }
 
       // Draw words
+      const frame5Fx = useSediment ? getFrame5SpeckFx() : null;
       for (let i = 0; i < 3; i++) {
         const x = curTargets[i].x;
         const y = curTargets[i].y;
         const wx = x + curLayouts[i].dx;
         const wy = y + curLayouts[i].dy;
         if (i === 0 && done && matterReady) {
-          drawMatterSpeckLetters();
+          drawMatterSpeckLetters(frame5Fx);
         } else {
           fill(0);
           textAlign(CENTER, CENTER);
@@ -1184,55 +1199,8 @@ function draw() {
           translate(cx, screenY);
           scale(camZoom);
           translate(-camX, -camY);
-          drawMatterSpeckLetters();
+          drawMatterSpeckLetters(frame5Fx);
           pop();
-        }
-
-        // Frame 5 epilogue: after the sediment fill completes AND the speck letters "collapse" (settle),
-        // flash for 1 frame, then leave a faint afterglow that slowly dims.
-        if (galleryFrame === 5 && inkDone && matterReady) {
-          if (!post2Frame5Epilogue) post2Frame5Epilogue = { settleFrames: 0, flashFrame: -1, startMs: 0 };
-
-          if (post2Frame5Epilogue.flashFrame < 0) {
-            if (speckBodiesSettled()) post2Frame5Epilogue.settleFrames++;
-            else post2Frame5Epilogue.settleFrames = 0;
-
-            if (post2Frame5Epilogue.settleFrames >= 12) {
-              post2Frame5Epilogue.flashFrame = frameCount;
-              post2Frame5Epilogue.startMs = millis();
-            }
-          }
-
-          if (post2Frame5Epilogue.flashFrame >= 0) {
-            const isFlash = frameCount === post2Frame5Epilogue.flashFrame;
-            const dt = millis() - post2Frame5Epilogue.startMs;
-            const after = 70 * Math.exp(-dt / 3200);
-            const a = isFlash ? 255 : after;
-
-            if (a > 0.8) {
-              push();
-              textAlign(CENTER, CENTER);
-              if (uiFont) textFont(uiFont);
-              textSize(16);
-              textLeading(22);
-
-              const boxW = Math.min(540, width * 0.86);
-              const x = width / 2;
-              const y = height * 0.28;
-
-              const ctx2 = drawingContext;
-              ctx2.save();
-              ctx2.shadowBlur = isFlash ? 0 : 18;
-              ctx2.shadowColor = `rgba(255,255,255,${Math.min(1, a / 255)})`;
-              noStroke();
-              fill(255, a);
-              text(POST2_FRAME5_EPILOGUE, x, y, boxW, 400);
-              ctx2.restore();
-              pop();
-            }
-
-            if (!isFlash && after < 0.6) noLoop();
-          }
         }
       } else if (done && inkDone && descStartMs) {
         const fade = clamp01((millis() - descStartMs) / 1100);
@@ -1282,7 +1250,7 @@ function draw() {
           translate(cx, screenY);
           scale(camZoom);
           translate(-camX, -camY);
-          drawMatterSpeckLetters();
+          drawMatterSpeckLetters(null);
           pop();
         }
 
