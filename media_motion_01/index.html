@@ -4,6 +4,9 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>media_motion_01 — spec</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500&display=swap" rel="stylesheet">
   <style>
     @font-face {
       font-family: "genwanlatin";
@@ -11,19 +14,24 @@
       font-style: normal;
       src: url("https://freight.cargo.site/m/K2650652186881166999210129014453/genwan_latin_092725_1-r-webfont.woff2") format("woff2");
     }
-    @font-face {
-      font-family: "GenWanMin2TC";
-      font-weight: 400;
-      font-style: normal;
-      src: url("https://freight.cargo.site/m/E2539229496219093883906941173429/GenWanMin2TC-R.woff2") format("woff2");
+
+    :root {
+      --bg:     #ece7de;
+      --ink:    #1a1714;
+      --blue:   #4e87b0;
+      --border: rgba(26,23,20,0.1);
+      --muted:  rgba(26,23,20,0.38);
     }
 
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+    html { font-size: 18px; }
+
     html, body {
-      background: #0a0a0a;
-      color: #fff;
-      font-family: "GenWanMin2TC", serif;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: "Space Grotesk", sans-serif;
+      font-weight: 400;
       -webkit-font-smoothing: antialiased;
     }
 
@@ -33,49 +41,48 @@
       display: flex;
       align-items: baseline;
       justify-content: space-between;
-      border-bottom: 0.5px solid rgba(255,255,255,0.08);
+      border-bottom: 0.5px solid var(--border);
     }
 
     .breadcrumb {
       display: flex;
       align-items: baseline;
       gap: 0.6rem;
-      font-size: 0.85rem;
+      font-size: 1rem;
       letter-spacing: 0.06em;
     }
 
     .breadcrumb a {
       font-family: "genwanlatin", serif;
       font-size: 1.1rem;
-      color: #fff;
+      color: var(--muted);
       text-decoration: none;
-      opacity: 0.5;
-      transition: opacity 0.15s;
+      transition: color 0.15s;
     }
-    .breadcrumb a:hover { opacity: 1; }
+    .breadcrumb a:hover { color: var(--ink); }
 
     .breadcrumb-sep {
-      opacity: 0.2;
-      font-size: 0.75rem;
+      color: var(--border);
+      font-size: 1rem;
     }
 
     .breadcrumb-current {
       font-family: "genwanlatin", serif;
       font-size: 1.1rem;
-      opacity: 0.9;
+      color: var(--ink);
     }
 
     /* ── project header ── */
     .project-header {
       padding: 4rem 2.8rem 3rem;
-      border-bottom: 0.5px solid rgba(255,255,255,0.08);
+      border-bottom: 0.5px solid var(--border);
     }
 
     .project-id {
-      font-size: 0.72rem;
+      font-size: 1rem;
       letter-spacing: 0.22em;
       text-transform: uppercase;
-      opacity: 0.3;
+      color: var(--muted);
       margin-bottom: 0.8rem;
     }
 
@@ -84,6 +91,7 @@
       font-size: clamp(2.2rem, 5vw, 4.2rem);
       line-height: 1;
       letter-spacing: 0.01em;
+      color: var(--ink);
     }
 
     .project-meta {
@@ -100,14 +108,16 @@
     }
 
     .meta-label {
-      font-size: 0.68rem;
+      font-size: 1rem;
+      font-weight: 500;
       letter-spacing: 0.18em;
       text-transform: uppercase;
-      opacity: 0.3;
+      color: var(--muted);
     }
 
     .meta-value {
-      font-size: 0.88rem;
+      font-size: 1rem;
+      color: var(--ink);
       opacity: 0.75;
       line-height: 1.5;
     }
@@ -115,7 +125,7 @@
     /* ── brief ── */
     .brief {
       padding: 3rem 2.8rem;
-      border-bottom: 0.5px solid rgba(255,255,255,0.08);
+      border-bottom: 0.5px solid var(--border);
       display: flex;
       justify-content: center;
     }
@@ -123,7 +133,7 @@
     .brief p {
       font-size: 1.05rem;
       line-height: 1.75;
-      opacity: 0.6;
+      color: var(--muted);
       max-width: 52rem;
       text-align: center;
     }
@@ -134,10 +144,11 @@
     }
 
     .section-label {
-      font-size: 0.72rem;
+      font-size: 1rem;
+      font-weight: 500;
       letter-spacing: 0.2em;
       text-transform: uppercase;
-      opacity: 0.3;
+      color: var(--muted);
       margin-bottom: 2rem;
       text-align: center;
     }
@@ -147,36 +158,37 @@
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 0.5px;
-      background: rgba(255,255,255,0.07);
-      border-top: 0.5px solid rgba(255,255,255,0.07);
+      background: var(--border);
+      border-top: 0.5px solid var(--border);
     }
 
     /* ── category grouping ── */
     .asset-group {
-      background: #0a0a0a;
+      background: var(--bg);
     }
 
     .group-label {
-      font-size: 0.68rem;
+      font-size: 1rem;
+      font-weight: 500;
       letter-spacing: 0.18em;
       text-transform: uppercase;
-      opacity: 0.22;
+      color: var(--muted);
       padding: 1.2rem 2.8rem 0.9rem;
-      border-bottom: 0.5px solid rgba(255,255,255,0.07);
+      border-bottom: 0.5px solid var(--border);
     }
 
     .asset-list {
       display: flex;
       flex-direction: column;
       gap: 0.5px;
-      background: rgba(255,255,255,0.07);
+      background: var(--border);
     }
 
     .asset-card {
-      background: #0a0a0a;
+      background: var(--bg);
       padding: 1.6rem 2.8rem;
       text-decoration: none;
-      color: #fff;
+      color: var(--ink);
       display: flex;
       flex-direction: column;
       gap: 0.4rem;
@@ -184,7 +196,7 @@
       position: relative;
     }
 
-    .asset-card:hover { background: #111; }
+    .asset-card:hover { background: #e5dfd5; }
 
     .asset-card-top {
       display: flex;
@@ -198,10 +210,11 @@
       font-size: 1.05rem;
       letter-spacing: 0.01em;
       line-height: 1.25;
+      color: var(--ink);
     }
 
     .asset-status {
-      font-size: 0.62rem;
+      font-size: 1rem;
       letter-spacing: 0.12em;
       text-transform: uppercase;
       padding: 0.15rem 0.6rem 0.18rem;
@@ -211,23 +224,23 @@
     }
 
     .status-live {
-      background: rgba(255,255,255,0.07);
-      color: rgba(255,255,255,0.6);
+      background: rgba(26,23,20,0.06);
+      color: rgba(26,23,20,0.5);
     }
 
     .status-dev {
-      background: rgba(255,200,80,0.1);
-      color: rgba(255,200,80,0.65);
+      background: rgba(78,135,176,0.12);
+      color: rgba(78,135,176,0.85);
     }
 
     .status-wip {
-      background: rgba(120,180,255,0.1);
-      color: rgba(120,180,255,0.65);
+      background: rgba(78,135,176,0.18);
+      color: var(--blue);
     }
 
     .asset-desc {
-      font-size: 0.8rem;
-      opacity: 0.38;
+      font-size: 1rem;
+      color: var(--muted);
       line-height: 1.55;
     }
 
@@ -235,25 +248,26 @@
       position: absolute;
       bottom: 1.4rem;
       right: 1.8rem;
-      font-size: 0.75rem;
+      font-size: 1rem;
+      color: var(--muted);
       opacity: 0;
       transition: opacity 0.15s, transform 0.15s;
     }
 
     .asset-card:hover .asset-arrow {
-      opacity: 0.5;
+      opacity: 0.7;
       transform: translate(2px, -2px);
     }
 
     /* ── footer ── */
     footer {
       padding: 1.6rem 2.8rem;
-      border-top: 0.5px solid rgba(255,255,255,0.08);
+      border-top: 0.5px solid var(--border);
       display: flex;
       justify-content: space-between;
       align-items: center;
-      font-size: 0.72rem;
-      opacity: 0.25;
+      font-size: 1rem;
+      color: var(--muted);
       letter-spacing: 0.08em;
     }
   </style>
@@ -326,26 +340,17 @@
         </div>
       </div>
 
-      <!-- ── Testing phases ── -->
+      <!-- ── Testing ── -->
       <div class="asset-group">
         <p class="group-label">testing</p>
         <div class="asset-list">
 
-          <a class="asset-card" href="../motion asset/liquidfun-phases/phase-3-speckliquid-world-only.html">
+          <a class="asset-card" href="../motion asset/testing.html">
             <div class="asset-card-top">
-              <span class="asset-name">phase 3 — world only</span>
-              <span class="asset-status status-dev">dev</span>
+              <span class="asset-name">liquidfun phases</span>
+              <span class="asset-status status-dev">2 phases</span>
             </div>
-            <span class="asset-desc">speckLiquidFun module running in isolation — particles, gravity, walls. No Matter.js.</span>
-            <span class="asset-arrow">↗</span>
-          </a>
-
-          <a class="asset-card" href="../motion asset/liquidfun-phases/phase-4-break-one-glyph-no-collision.html">
-            <div class="asset-card-top">
-              <span class="asset-name">phase 4 — break one glyph</span>
-              <span class="asset-status status-wip">wip</span>
-            </div>
-            <span class="asset-desc">Single glyph disintegration — silhouette fades as particles break free. Fluid physics tuning.</span>
+            <span class="asset-desc">Phase 3 — world only. Phase 4 — break one glyph. Fluid physics integration and tuning.</span>
             <span class="asset-arrow">↗</span>
           </a>
 

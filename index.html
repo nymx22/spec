@@ -4,6 +4,9 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>spec — media brand design</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500&display=swap" rel="stylesheet">
   <style>
     @font-face {
       font-family: "genwanlatin";
@@ -11,20 +14,25 @@
       font-style: normal;
       src: url("https://freight.cargo.site/m/K2650652186881166999210129014453/genwan_latin_092725_1-r-webfont.woff2") format("woff2");
     }
-    @font-face {
-      font-family: "GenWanMin2TC";
-      font-weight: 400;
-      font-style: normal;
-      src: url("https://freight.cargo.site/m/E2539229496219093883906941173429/GenWanMin2TC-R.woff2") format("woff2");
+
+    :root {
+      --bg:     #ece7de;
+      --ink:    #1a1714;
+      --blue:   #4e87b0;
+      --border: rgba(26,23,20,0.1);
+      --muted:  rgba(26,23,20,0.38);
     }
 
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+    html { font-size: 18px; }
+
     html, body {
       height: 100%;
-      background: #0a0a0a;
-      color: #fff;
-      font-family: "GenWanMin2TC", serif;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: "Space Grotesk", sans-serif;
+      font-weight: 400;
       -webkit-font-smoothing: antialiased;
     }
 
@@ -34,14 +42,14 @@
       display: flex;
       align-items: baseline;
       gap: 2rem;
-      border-bottom: 0.5px solid rgba(255,255,255,0.08);
+      border-bottom: 0.5px solid var(--border);
     }
 
     .brand {
       font-family: "genwanlatin", serif;
       font-size: 1.6rem;
       letter-spacing: 0.04em;
-      color: #fff;
+      color: var(--ink);
       text-decoration: none;
     }
 
@@ -51,10 +59,11 @@
     }
 
     .section-label {
-      font-size: 0.72rem;
+      font-size: 1rem;
+      font-weight: 500;
       letter-spacing: 0.2em;
       text-transform: uppercase;
-      opacity: 0.35;
+      color: var(--muted);
       margin-bottom: 2rem;
     }
 
@@ -62,14 +71,14 @@
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
       gap: 1px;
-      background: rgba(255,255,255,0.08);
+      background: var(--border);
     }
 
     .project-card {
-      background: #0a0a0a;
+      background: var(--bg);
       padding: 2rem 1.8rem 2.2rem;
       text-decoration: none;
-      color: #fff;
+      color: var(--ink);
       display: flex;
       flex-direction: column;
       gap: 0.6rem;
@@ -78,14 +87,14 @@
     }
 
     .project-card:hover {
-      background: #131313;
+      background: #e5dfd5;
     }
 
     .project-id {
-      font-size: 0.7rem;
+      font-size: 1rem;
       letter-spacing: 0.2em;
       text-transform: uppercase;
-      opacity: 0.3;
+      color: var(--muted);
     }
 
     .project-name {
@@ -93,11 +102,12 @@
       font-size: 1.5rem;
       letter-spacing: 0.01em;
       line-height: 1.2;
+      color: var(--ink);
     }
 
     .project-desc {
-      font-size: 0.82rem;
-      opacity: 0.45;
+      font-size: 1rem;
+      color: var(--muted);
       line-height: 1.6;
       margin-top: 0.3rem;
     }
@@ -111,11 +121,11 @@
     }
 
     .tag {
-      font-size: 0.68rem;
+      font-size: 1rem;
       letter-spacing: 0.1em;
       text-transform: uppercase;
-      opacity: 0.4;
-      border: 0.5px solid rgba(255,255,255,0.22);
+      color: var(--muted);
+      border: 0.5px solid rgba(26,23,20,0.2);
       border-radius: 999px;
       padding: 0.15rem 0.65rem 0.2rem;
     }
@@ -124,13 +134,14 @@
       position: absolute;
       top: 2rem;
       right: 1.8rem;
-      opacity: 0.2;
-      font-size: 0.85rem;
+      color: var(--muted);
+      opacity: 0.4;
+      font-size: 1rem;
       transition: opacity 0.15s, transform 0.15s;
     }
 
     .project-card:hover .project-arrow {
-      opacity: 0.7;
+      opacity: 0.9;
       transform: translate(3px, -3px);
     }
   </style>

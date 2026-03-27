@@ -4,23 +4,62 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Phase 4 - Break one glyph (no collision)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500&display=swap" rel="stylesheet">
   <style>
+    :root {
+      --bg:     #ece7de;
+      --ink:    #1a1714;
+      --border: rgba(26,23,20,0.14);
+      --muted:  rgba(26,23,20,0.38);
+    }
+    html { font-size: 18px; }
+
     body {
       margin: 0;
       min-height: 100vh;
-      background: #f2f2f2;
+      background: var(--bg);
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      gap: 10px;
+      gap: 12px;
       padding: 16px;
-      font: 14px/1.35 system-ui, sans-serif;
-      color: #333;
+      font-family: "Space Grotesk", sans-serif;
+      font-size: 1rem;
+      font-weight: 400;
+      color: var(--ink);
+      -webkit-font-smoothing: antialiased;
     }
     .row { display: flex; gap: 8px; align-items: center; }
-    button { padding: 8px 10px; border: 1px solid #ccc; border-radius: 8px; background: #fff; cursor: pointer; }
-    input { width: 48px; padding: 6px; border: 1px solid #ccc; border-radius: 6px; }
+    button {
+      padding: 6px 14px;
+      border: 0.5px solid var(--border);
+      border-radius: 999px;
+      background: transparent;
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 1rem;
+      font-weight: 500;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      transition: color 0.15s, border-color 0.15s;
+    }
+    button:hover { color: var(--ink); border-color: rgba(26,23,20,0.35); }
+    label { font-size: 1rem; font-weight: 500; color: var(--muted); letter-spacing: 0.06em; display: flex; align-items: center; gap: 6px; }
+    input {
+      width: 40px;
+      padding: 4px 8px;
+      border: 0.5px solid var(--border);
+      border-radius: 6px;
+      background: transparent;
+      font-family: inherit;
+      font-size: 1rem;
+      color: var(--ink);
+      text-align: center;
+    }
+    input:focus { outline: none; border-color: rgba(26,23,20,0.35); }
     main { display: block; }
   </style>
 </head>
