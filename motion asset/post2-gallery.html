@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Venn Diagram (Frames)</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.8.0/p5.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.20.0/matter.min.js"></script>
+  <script src="inkBlob.js"></script>
+  <style>
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: #fff;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    .wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+      padding: 24px 16px;
+    }
+    main { display: block; }
+    .controls {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      user-select: none;
+    }
+    button {
+      appearance: none;
+      border: 1px solid #ddd;
+      background: #fff;
+      padding: 10px 14px;
+      border-radius: 10px;
+      font: 14px/1.1 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      cursor: pointer;
+    }
+    button:active { transform: translateY(1px); }
+    .counter {
+      font: 14px/1.1 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      color: #333;
+      min-width: 60px;
+      text-align: center;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+    <main></main>
+    <div class="controls">
+      <button id="prev" type="button">Prev</button>
+      <div id="counter" class="counter">1 / 2</div>
+      <button id="next" type="button">Next</button>
+    </div>
+  </div>
+  <script>
+    window.__SPEC_GALLERY__ = true;
+    window.__SPEC_GALLERY_FRAME__ = 1;
+
+    const TOTAL_FRAMES = 5;
+    const counterEl = document.getElementById('counter');
+
+    function updateUI() {
+      const f = window.__SPEC_GALLERY_FRAME__ || 1;
+      counterEl.textContent = `${f} / ${TOTAL_FRAMES}`;
+    }
+
+    function gotoFrame(delta) {
+      const cur = window.__SPEC_GALLERY_FRAME__ || 1;
+      const f = Math.max(1, Math.min(TOTAL_FRAMES, cur + delta));
+      window.__SPEC_GALLERY_FRAME__ = f;
+      updateUI();
+      if (typeof window.redraw === 'function') window.redraw();
+    }
+
+    document.getElementById('prev').addEventListener('click', () => gotoFrame(-1));
+    document.getElementById('next').addEventListener('click', () => gotoFrame(1));
+    updateUI();
+  </script>
+  <script src="sketch.js"></script>
+</body>
+
+</html>

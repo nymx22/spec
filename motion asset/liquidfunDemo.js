@@ -1,5 +1,5 @@
 /**
- * Phase 2–3: LiquidFun via SpecSpeckLiquid (no Matter, no sketch.js).
+ * post1.2 · 2 (world only): LiquidFun via SpecSpeckLiquid (no Matter, no sketch.js).
  * initDemoWorld = circular wall + water blob in pixel/Matter-style coords.
  */
 function setup() {
@@ -16,9 +16,9 @@ function setup() {
 }
 
 function draw() {
-  background(248);
+  background(228);
   if (!window.SpecSpeckLiquid) return;
   var dt = typeof deltaTime !== 'undefined' ? deltaTime : 16;
   SpecSpeckLiquid.step(dt);
-  SpecSpeckLiquid.drawParticles(30, 100, 220);
+  SpecSpeckLiquid.drawParticles(255, 255, 255);
 }

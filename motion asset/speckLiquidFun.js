@@ -167,7 +167,7 @@
   }
 
   /**
-   * Phase 3 / isolated demo: one circular bucket + viscous water blob (Matter-style +Y down).
+   * post1.2 · 2 / isolated demo: one circular bucket + viscous water blob (Matter-style +Y down).
    * No Matter.js. Coordinates match p5 canvas pixels (x right, y down).
    * @param {{ width:number, height:number, gravityY?: number }} o
    * Tuned for snappy motion at pixel scale: strong gravity, low drag, slippery walls, extra Step iters + sim speed.

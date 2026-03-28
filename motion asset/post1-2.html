@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>post1.2 — media_motion_01</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:     #e4e4e4;
+      --ink:    #141414;
+      --border: rgba(0,0,0,0.12);
+      --muted:  rgba(0,0,0,0.42);
+      --sidebar-w: 270px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html { font-size: 18px; }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: "Space Grotesk", sans-serif;
+      font-size: 1rem;
+      font-weight: 400;
+      -webkit-font-smoothing: antialiased;
+      overflow: hidden;
+    }
+
+    .shell {
+      display: flex;
+      height: 100vh;
+    }
+
+    aside {
+      width: var(--sidebar-w);
+      flex-shrink: 0;
+      border-right: 0.5px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+    }
+
+    .sidebar-header {
+      padding: 1.6rem 1.4rem 1rem;
+      border-bottom: 0.5px solid var(--border);
+    }
+
+    .back-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      font-size: 1rem;
+      font-weight: 500;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      text-decoration: none;
+      text-transform: uppercase;
+      transition: color 0.15s;
+      margin-bottom: 1rem;
+    }
+    .back-link:hover { color: var(--ink); }
+    .back-link-arrow { font-size: 1rem; }
+
+    .sidebar-title {
+      font-size: 1rem;
+      font-weight: 500;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .nav-count {
+      font-size: 1rem;
+      color: var(--muted);
+      opacity: 0.6;
+      margin-top: 0.2rem;
+    }
+
+    .nav-list {
+      padding: 0.6rem 0;
+      flex: 1;
+    }
+
+    .nav-item {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+      padding: 0.9rem 1.4rem;
+      cursor: pointer;
+      border-left: 2px solid transparent;
+      transition: background 0.13s, border-color 0.13s;
+      text-decoration: none;
+      color: inherit;
+    }
+
+    .nav-item:hover {
+      background: rgba(0,0,0,0.05);
+    }
+
+    .nav-item.active {
+      border-left-color: var(--ink);
+      background: rgba(0,0,0,0.07);
+    }
+
+    .nav-item-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+    }
+
+    .nav-num {
+      font-size: 1rem;
+      font-weight: 500;
+      color: var(--ink);
+      line-height: 1.3;
+    }
+
+    .nav-item:not(.active) .nav-num {
+      color: var(--muted);
+    }
+
+    .nav-status {
+      font-size: 1rem;
+      font-weight: 500;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      padding: 0.1rem 0.5rem 0.14rem;
+      border-radius: 999px;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .status-live {
+      background: rgba(0,0,0,0.06);
+      color: rgba(0,0,0,0.5);
+    }
+
+    .status-dev {
+      background: rgba(0,0,0,0.08);
+      color: rgba(0,0,0,0.55);
+    }
+
+    .status-wip {
+      background: rgba(0,0,0,0.12);
+      color: rgba(0,0,0,0.72);
+    }
+
+    .nav-desc {
+      font-size: 1rem;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    .preview {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .preview-bar {
+      padding: 0.7rem 1.4rem;
+      border-bottom: 0.5px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 0.8rem;
+      flex-shrink: 0;
+    }
+
+    .preview-label {
+      font-size: 1rem;
+      font-weight: 500;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .preview-name {
+      font-size: 1rem;
+      font-weight: 500;
+      color: var(--ink);
+    }
+
+    .preview-sep { color: var(--border); font-size: 1rem; }
+
+    iframe {
+      flex: 1;
+      width: 100%;
+      border: none;
+      background: var(--bg);
+    }
+  </style>
+</head>
+<body>
+
+<div class="shell">
+
+  <aside>
+    <div class="sidebar-header">
+      <a class="back-link" href="../media_motion_01/index.html">
+        <span class="back-link-arrow">←</span> media_motion_01
+      </a>
+      <div class="sidebar-title">post1.2</div>
+      <div class="nav-count">1 · 2 · 3 · 4</div>
+    </div>
+
+    <nav class="nav-list">
+
+      <a class="nav-item active"
+         href="#"
+         data-src="post2-gallery.html"
+         data-name="1 — p5.js matter.js">
+        <div class="nav-item-top">
+          <span class="nav-num">1</span>
+          <span class="nav-status status-live">live</span>
+        </div>
+        <span class="nav-desc">Venn frames — Matter.js speck, ink, transitions</span>
+      </a>
+
+      <a class="nav-item"
+         href="#"
+         data-src="liquidfun-phases/phase-3-speckliquid-world-only.html"
+         data-name="2 — world only">
+        <div class="nav-item-top">
+          <span class="nav-num">2</span>
+          <span class="nav-status status-dev">dev</span>
+        </div>
+        <span class="nav-desc">liquidfun — particles, gravity, walls</span>
+      </a>
+
+      <a class="nav-item"
+         href="#"
+         data-src="liquidfun-phases/phase-4-break-one-glyph-no-collision.html"
+         data-name="3 — break one glyph">
+        <div class="nav-item-top">
+          <span class="nav-num">3</span>
+          <span class="nav-status status-wip">wip</span>
+        </div>
+        <span class="nav-desc">liquidfun — glyph disintegration</span>
+      </a>
+
+      <a class="nav-item"
+         href="#"
+         data-src="liquidfun-phases/phase-4-speck-word.html"
+         data-name="4 — speck in circle">
+        <div class="nav-item-top">
+          <span class="nav-num">4</span>
+          <span class="nav-status status-wip">wip</span>
+        </div>
+        <span class="nav-desc">liquidfun — “speck” word break</span>
+      </a>
+
+    </nav>
+  </aside>
+
+  <div class="preview">
+    <div class="preview-bar">
+      <span class="preview-label">post1.2</span>
+      <span class="preview-sep">/</span>
+      <span class="preview-name" id="previewName">1 — gallery</span>
+    </div>
+    <iframe id="previewFrame"
+            src="post2-gallery.html"
+            title="post1.2 preview">
+    </iframe>
+  </div>
+
+</div>
+
+<script>
+  var items = document.querySelectorAll('.nav-item');
+  var frame = document.getElementById('previewFrame');
+  var nameEl = document.getElementById('previewName');
+
+  items.forEach(function(item) {
+    item.addEventListener('click', function(e) {
+      e.preventDefault();
+      items.forEach(function(i) { i.classList.remove('active'); });
+      item.classList.add('active');
+      frame.src = item.dataset.src;
+      nameEl.textContent = item.dataset.name;
+    });
+  });
+</script>
+
+</body>
+</html>

@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>3 — break one glyph</title>
+  <title>4 — speck in circle</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500&display=swap" rel="stylesheet">
@@ -54,8 +54,8 @@
     }
     button:hover { color: var(--ink); border-color: rgba(0,0,0,0.28); }
     label { font-size: 1rem; font-weight: 500; color: var(--muted); letter-spacing: 0.06em; display: flex; align-items: center; gap: 6px; }
-    input {
-      width: 40px;
+    input#glyphInput {
+      width: 120px;
       padding: 4px 8px;
       border: 0.5px solid var(--border);
       border-radius: 6px;
@@ -66,6 +66,17 @@
       text-align: center;
     }
     input:focus { outline: none; border-color: rgba(0,0,0,0.28); }
+    input[type="color"]#glyphColor {
+      width: 36px;
+      height: 28px;
+      padding: 0;
+      border: 0.5px solid var(--border);
+      border-radius: 6px;
+      cursor: pointer;
+      background: transparent;
+    }
+    input[type="color"]#glyphColor::-webkit-color-swatch-wrapper { padding: 2px; }
+    input[type="color"]#glyphColor::-webkit-color-swatch { border-radius: 4px; border: none; }
     main { display: block; }
   </style>
 </head>
@@ -73,7 +84,8 @@
   <div class="row">
     <button id="breakBtn" type="button">Break Glyph</button>
     <button id="resetBtn" type="button">Reset</button>
-    <label>A–Z / a–z <input id="glyphInput" maxlength="1" value="S" title="English letter only" /></label>
+    <label title="Glyph &amp; particle color">Color <input id="glyphColor" type="color" value="#ffffff" /></label>
+    <label>Word <input id="glyphInput" type="text" maxlength="12" value="speck" title="Letters only" spellcheck="false" /></label>
     <span id="particleInfo" style="margin-left:10px;color:var(--muted);font-size:0.9rem;"></span>
   </div>
   <main></main>
@@ -81,8 +93,8 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.8.0/p5.js"></script>
   <script src="../lib/liquidfun.js"></script>
   <script>
-    // Particle system matches initDemoWorld. Glyph = many CreateParticleGroup(circle) patches (same as world
-    // blob API); binding has no arbitrary polygon fill. Patch radius ~fraction of canvas like world’s 0.07·min.
+    // Phase 4 variant: word “speck” (genwanlatin) inside the circle — same break, stagger, mask trim, fade,
+    // and glyph overlay as phase-4-break-one-glyph-no-collision (wider raster + higher patch cap).
     var CFG = {
       gravityY: 32,
       radius: 3.2,
@@ -131,6 +143,11 @@
       fallStaggerEase: 1.22,
       /** Optional ms after last particle releases before glyph overlay hits alpha 0 (0 = gone exactly at last release). */
       glyphFadeOutTailMs: 140,
+      /** Raster buffer for multi-letter word (genwanlatin). */
+      wordMaskWidth: 400,
+      wordMaskHeight: 170,
+      wordTextSize: 76,
+      defaultWord: 'speck',
     };
 
     var world;
@@ -140,7 +157,7 @@
       cx: 0,
       cy: 0,
       r: 0,
-      glyph: 'S',
+      glyph: 'speck',
       glyphCenterX: 0,
       glyphCenterY: 0,
       glyphPoints: [],
@@ -162,10 +179,12 @@
       fallReleaseAtMs: null,
       /** max(fallReleaseAtMs); glyph overlay fully faded by this + tail. */
       fallLastReleaseMs: -1,
+      /** From #glyphColor — fill tint & particles (synced in wireUI). */
+      glyphRgb: { r: 255, g: 255, b: 255 },
     };
 
     /** Max CreateParticleGroup calls (each patch relaxes like world-only disk). */
-    var MAX_PATCH_GROUPS = 220;
+    var MAX_PATCH_GROUPS = 520;
 
     /** Spec title font (same as index / media_motion_01 .brand / .project-title). Loaded via @font-face above. */
     var SPEC_TITLE_FONT = 'genwanlatin';
@@ -180,10 +199,26 @@
     function specFontReady() {
       if (!document.fonts) return true;
       try {
-        return document.fonts.check('400 124px ' + SPEC_TITLE_FONT);
+        return document.fonts.check('400 ' + CFG.wordTextSize + 'px ' + SPEC_TITLE_FONT);
       } catch (e) {
         return true;
       }
+    }
+
+    function hexToRgb(hex) {
+      var h = (hex || '').replace(/^#/, '');
+      if (h.length === 3) {
+        h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+      }
+      if (h.length !== 6) return { r: 255, g: 255, b: 255 };
+      var n = parseInt(h, 16);
+      if (isNaN(n)) return { r: 255, g: 255, b: 255 };
+      return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+    }
+
+    function syncGlyphColorFromUI() {
+      var el = document.getElementById('glyphColor');
+      phase4.glyphRgb = hexToRgb(el && el.value ? el.value : '#ffffff');
     }
 
     function setup() {
@@ -199,7 +234,7 @@
         specFontGlyphPrimed = true;
       }
       if (document.fonts && document.fonts.load) {
-        document.fonts.load('400 124px ' + SPEC_TITLE_FONT).catch(function () {});
+        document.fonts.load('400 ' + CFG.wordTextSize + 'px ' + SPEC_TITLE_FONT).catch(function () {});
       }
     }
 
@@ -258,10 +293,10 @@
     }
 
     function getGlyph() {
-      var v = (document.getElementById('glyphInput').value || 'S').trim();
-      var ch = v.length ? v[0] : 'S';
-      if (!/[A-Za-z]/.test(ch)) return 'S';
-      return ch;
+      var raw = (document.getElementById('glyphInput').value || CFG.defaultWord).trim();
+      var v = raw.replace(/[^A-Za-z]/g, '');
+      if (!v.length) return CFG.defaultWord;
+      return v.length > 12 ? v.slice(0, 12) : v;
     }
 
     function scanGlyphBBox(g, threshold) {
@@ -408,14 +443,14 @@
         phase4.glyphMaskGfx = null;
       }
 
-      var g = createGraphics(170, 170);
+      var g = createGraphics(CFG.wordMaskWidth, CFG.wordMaskHeight);
       g.pixelDensity(1);
       g.clear();
       g.noStroke();
       g.fill(255);
       g.textAlign(CENTER, CENTER);
       applySpecTitleFont(g);
-      g.textSize(124);
+      g.textSize(CFG.wordTextSize);
       g.textStyle(NORMAL);
       g.text(ch, g.width / 2, g.height / 2 + 6);
       g.loadPixels();
@@ -546,7 +581,8 @@
         var pgd = new LF.b2ParticleGroupDef();
         pgd.shape = circle;
         pgd.flags = LF.b2_waterParticle;
-        pgd.color = new LF.b2ParticleColor(255, 255, 255, 255);
+        var c = phase4.glyphRgb;
+        pgd.color = new LF.b2ParticleColor(c.r, c.g, c.b, 255);
         particleSystem.CreateParticleGroup(pgd);
       }
     }
@@ -625,16 +661,22 @@
         [o, -o],
         [o, o],
       ];
+      var cr = phase4.glyphRgb.r;
+      var cg = phase4.glyphRgb.g;
+      var cb = phase4.glyphRgb.b;
       push();
       noStroke();
       if (outlineAlpha > 0) {
-        tint(0, 0, 0, constrain(outlineAlpha, 0, 255));
+        var or = Math.round(cr * 0.35);
+        var og = Math.round(cg * 0.35);
+        var ob = Math.round(cb * 0.35);
+        tint(or, og, ob, constrain(outlineAlpha, 0, 255));
         for (var oi = 0; oi < outline.length; oi++) {
           image(img, dx + outline[oi][0], dy + outline[oi][1], dw, dh);
         }
       }
       if (fillAlpha > 0) {
-        tint(255, 255, 255, constrain(fillAlpha, 0, 255));
+        tint(cr, cg, cb, constrain(fillAlpha, 0, 255));
         image(img, dx, dy, dw, dh);
       }
       noTint();
@@ -692,6 +734,12 @@
     }
 
     function wireUI() {
+      syncGlyphColorFromUI();
+      var colorIn = document.getElementById('glyphColor');
+      if (colorIn) {
+        colorIn.addEventListener('input', syncGlyphColorFromUI);
+        colorIn.addEventListener('change', syncGlyphColorFromUI);
+      }
       document.getElementById('breakBtn').addEventListener('click', function () {
         startGlyphDisintegration(getGlyph());
       });
@@ -701,15 +749,11 @@
       var gi = document.getElementById('glyphInput');
       if (gi) {
         gi.addEventListener('input', function () {
-          var v = (gi.value || '').trim();
-          if (!v.length) return;
-          var c = v[0];
-          if (!/[A-Za-z]/.test(c)) {
-            gi.value = phase4.glyph || 'S';
-            return;
-          }
-          gi.value = c;
-          if (!phase4.isBreaking) prepareGlyph(c);
+          var cleaned = (gi.value || '').replace(/[^A-Za-z]/g, '');
+          if (cleaned.length > 12) cleaned = cleaned.slice(0, 12);
+          if (gi.value !== cleaned) gi.value = cleaned;
+          if (!cleaned.length) return;
+          if (!phase4.isBreaking) prepareGlyph(cleaned);
         });
         gi.addEventListener('change', function () {
           if (!phase4.isBreaking) prepareGlyph(getGlyph());
@@ -775,11 +819,12 @@
           alpha = constrain(alpha * particleOpacityMul, 0, 255);
           var j = (i >> 1) % 7;
           var vr = 1 + j * 0.02;
-          fill(255, 255, 255, alpha);
+          var gc = phase4.glyphRgb;
+          fill(gc.r, gc.g, gc.b, alpha);
           circle(sx, sy, r * 2 * vr);
         }
 
-        // Breaking: white glyph on top of particles — same hue, alpha-only fade (no black outline here → no muddy darkening).
+        // Breaking: glyph color on top of particles — alpha-only fade (no dark outline pass here).
         if (phase4.isBreaking && phase4.glyphMaskGfx && phase4.fallLastReleaseMs >= 0) {
           var t0g = phase4.breakFadeStartMs;
           var t1g = phase4.fallLastReleaseMs + Math.max(0, CFG.glyphFadeOutTailMs);
