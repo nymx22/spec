@@ -1,9 +1,11 @@
 /**
  * post1.2 · 2 (world only): LiquidFun via SpecSpeckLiquid (no Matter, no sketch.js).
- * initDemoWorld = circular wall + water blob in pixel/Matter-style coords.
+ * Canvas 4:5; mobile fixed ref size, desktop fits main (see canvasFit4x5.js).
  */
 function setup() {
-  var cnv = createCanvas(480, 480);
+  var dim = window.specCanvas4x5 ? specCanvas4x5.compute() : { w: 480, h: 600 };
+  var cnv = createCanvas(dim.w, dim.h);
+  if (window.specCanvas4x5) specCanvas4x5.applyPixelDensity(window);
   var mainEl = typeof document !== 'undefined' ? document.querySelector('main') : null;
   if (mainEl && cnv && cnv.parent) cnv.parent(mainEl);
 
@@ -13,6 +15,18 @@ function setup() {
   }
   var ok = SpecSpeckLiquid.initDemoWorld({ width: width, height: height });
   if (!ok) console.error('[liquidfunDemo] initDemoWorld failed');
+  if (window.specCanvas4x5 && specCanvas4x5.installMainResizeDispatch) specCanvas4x5.installMainResizeDispatch();
+}
+
+function windowResized() {
+  if (!window.specCanvas4x5) return;
+  var dim = specCanvas4x5.compute();
+  resizeCanvas(dim.w, dim.h);
+  specCanvas4x5.applyPixelDensity(window);
+  if (window.SpecSpeckLiquid && SpecSpeckLiquid.available()) {
+    SpecSpeckLiquid.destroy();
+    SpecSpeckLiquid.initDemoWorld({ width: width, height: height });
+  }
 }
 
 function draw() {

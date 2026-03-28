@@ -321,15 +321,16 @@
         <span class="back-link-arrow">←</span> media_motion_01
       </a>
       <div class="sidebar-title">post1.2</div>
-      <div class="nav-count">1 · 2 · 3 · 4</div>
+      <div class="nav-count">1 · 2</div>
     </div>
 
     <nav class="nav-list">
 
       <a class="nav-item active"
-         href="#"
+         href="#gallery"
          data-src="post2-gallery.html"
-         data-name="1 — p5.js matter.js">
+         data-name="1 — p5.js matter.js"
+         data-slug="gallery">
         <div class="nav-item-top">
           <span class="nav-num">1</span>
           <span class="nav-status status-live">live</span>
@@ -338,36 +339,15 @@
       </a>
 
       <a class="nav-item"
-         href="#"
-         data-src="liquidfun-phases/phase-3-speckliquid-world-only.html"
-         data-name="2 — world only">
+         href="#liquidfun"
+         data-src="liquidfun-phases/liquidfun-gallery.html"
+         data-name="2 — LiquidFun"
+         data-slug="liquidfun">
         <div class="nav-item-top">
           <span class="nav-num">2</span>
           <span class="nav-status status-dev">dev</span>
         </div>
-        <span class="nav-desc">liquidfun — particles, gravity, walls</span>
-      </a>
-
-      <a class="nav-item"
-         href="#"
-         data-src="liquidfun-phases/phase-4-break-one-glyph-no-collision.html"
-         data-name="3 — break one glyph">
-        <div class="nav-item-top">
-          <span class="nav-num">3</span>
-          <span class="nav-status status-wip">wip</span>
-        </div>
-        <span class="nav-desc">liquidfun — glyph disintegration</span>
-      </a>
-
-      <a class="nav-item"
-         href="#"
-         data-src="liquidfun-phases/phase-4-speck-word.html"
-         data-name="4 — speck in circle">
-        <div class="nav-item-top">
-          <span class="nav-num">4</span>
-          <span class="nav-status status-wip">wip</span>
-        </div>
-        <span class="nav-desc">liquidfun — “speck” word break</span>
+        <span class="nav-desc">LiquidFun gallery — world, glyph break, speck word (arrows; shareable # per demo)</span>
       </a>
 
     </nav>
@@ -388,7 +368,7 @@
       <div class="preview-bar-text">
         <span class="preview-label">post1.2</span>
         <span class="preview-sep">/</span>
-        <span class="preview-name" id="previewName">1 — gallery</span>
+        <span class="preview-name" id="previewName">1 — p5.js matter.js</span>
       </div>
     </div>
     <iframe id="previewFrame"
@@ -402,7 +382,6 @@
 <script>
   (function () {
     var shell = document.getElementById('shell');
-    var sidebar = document.getElementById('sidebar');
     var toggle = document.getElementById('sidebarToggle');
     var scrim = document.getElementById('sidebarScrim');
     var items = document.querySelectorAll('.nav-item');
@@ -410,6 +389,90 @@
     var nameEl = document.getElementById('previewName');
 
     var mq = window.matchMedia('(max-width: 768px)');
+
+    /** Short links: post1-2.html#1 #2 plus aliases. Deep links to LiquidFun slides: #liquidfun-world, #glyph-break, #speck-word (still work; load gallery iframe with that hash). */
+    var LIQUIDFUN_SLUG = 'liquidfun';
+    var SLUG_ALIASES = {
+      '1': 'gallery',
+      p5: 'gallery',
+      matter: 'gallery',
+      '2': 'liquidfun',
+      liquidfun: 'liquidfun',
+      '3': 'glyph-break',
+      '4': 'speck-word',
+      world: 'liquidfun-world',
+      liquid: 'liquidfun-world',
+      glyph: 'glyph-break',
+      break: 'glyph-break',
+      speck: 'speck-word',
+    };
+
+    function isLiquidfunSubslug(s) {
+      return s === 'liquidfun-world' || s === 'glyph-break' || s === 'speck-word';
+    }
+
+    function canonicalSlug(raw) {
+      if (!raw) return '';
+      var k = String(raw).toLowerCase().trim();
+      return SLUG_ALIASES[k] || k;
+    }
+
+    function itemForSlug(slug) {
+      slug = canonicalSlug(slug);
+      if (!slug) return null;
+      if (slug === LIQUIDFUN_SLUG || isLiquidfunSubslug(slug)) {
+        for (var j = 0; j < items.length; j++) {
+          if (items[j].getAttribute('data-slug') === LIQUIDFUN_SLUG) return items[j];
+        }
+      }
+      for (var i = 0; i < items.length; i++) {
+        if (items[i].getAttribute('data-slug') === slug) return items[i];
+      }
+      return null;
+    }
+
+    function defaultItem() {
+      return items[0];
+    }
+
+    function applyItem(item, options) {
+      options = options || {};
+      if (!item) item = defaultItem();
+      items.forEach(function (i) { i.classList.remove('active'); });
+      item.classList.add('active');
+      var src = item.getAttribute('data-src');
+      var rawHash = (location.hash || '').replace(/^#/, '').trim();
+      var c = canonicalSlug(rawHash);
+      if (item.getAttribute('data-slug') === LIQUIDFUN_SLUG) {
+        var sub = 'liquidfun-world';
+        if (isLiquidfunSubslug(c)) sub = c;
+        else if (c === LIQUIDFUN_SLUG) sub = 'liquidfun-world';
+        var base = src.split('#')[0];
+        src = base + '#' + sub;
+      }
+      frame.src = src;
+      nameEl.textContent = item.getAttribute('data-name');
+      if (options.closeMobile && mq.matches) setOpen(false);
+    }
+
+    function syncFromHash(options) {
+      options = options || {};
+      var raw = (location.hash || '').replace(/^#/, '').trim();
+      var slug = canonicalSlug(raw);
+      var item = slug ? itemForSlug(slug) : null;
+      if (!item) {
+        if (raw) {
+          item = defaultItem();
+          slug = item.getAttribute('data-slug');
+          history.replaceState(null, '', location.pathname + location.search + '#' + slug);
+        } else {
+          item = defaultItem();
+          applyItem(item, { closeMobile: false });
+          return;
+        }
+      }
+      applyItem(item, { closeMobile: !!options.closeMobile });
+    }
 
     function setOpen(open) {
       shell.classList.toggle('sidebar-open', open);
@@ -445,16 +508,17 @@
       if (!e.matches) setOpen(false);
     });
 
+    window.addEventListener('hashchange', function () {
+      syncFromHash({ closeMobile: mq.matches });
+    });
+
     items.forEach(function (item) {
-      item.addEventListener('click', function (e) {
-        e.preventDefault();
-        items.forEach(function (i) { i.classList.remove('active'); });
-        item.classList.add('active');
-        frame.src = item.dataset.src;
-        nameEl.textContent = item.dataset.name;
+      item.addEventListener('click', function () {
         if (mq.matches) closeSidebar();
       });
     });
+
+    syncFromHash({ closeMobile: false });
   })();
 </script>
 

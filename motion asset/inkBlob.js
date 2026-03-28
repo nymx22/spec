@@ -24,6 +24,7 @@
     w: 0,
     h: 0,
     g: null,      // display layer (w x h)
+    inkDisplayPd: 0,
     maskG: null,  // mask raster (MASK_RES x MASK_RES)
     paintG: null, // paint raster (MASK_RES x MASK_RES)
     mask: null,   // Uint8Array (0/1), length = MASK_RES^2
@@ -39,6 +40,7 @@
     state.remaining = 0;
     state.total = 0;
     state.done = false;
+    state.inkDisplayPd = 0;
     if (state.paintG) state.paintG.clear();
     if (state.maskG) state.maskG.clear();
   }
@@ -46,11 +48,12 @@
   function ensureLayer(p5, w, h) {
     state.w = w;
     state.h = h;
-    if (!state.g || state.g.width !== w || state.g.height !== h) {
+    const mainPd = p5.pixelDensity();
+    const displayPd = Math.min(4, Math.max(mainPd, Math.round(mainPd * 1.5)));
+    if (!state.g || state.g.width !== w || state.g.height !== h || state.inkDisplayPd !== displayPd) {
       state.g = p5.createGraphics(w, h);
-      // Keep this crisp under camera zoom.
-      const d = Math.max(1, Math.min(4, Math.round(p5.pixelDensity() * 2)));
-      state.g.pixelDensity(d);
+      state.g.pixelDensity(displayPd);
+      state.inkDisplayPd = displayPd;
     }
     if (!state.maskG) {
       state.maskG = p5.createGraphics(MASK_RES, MASK_RES);

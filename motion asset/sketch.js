@@ -105,15 +105,103 @@ const LABEL_MAX_DIST_FRAC_BOTTOM = 0.68;
 const LABEL_DIST_STEP = 0.05;
 const LABEL_MARGIN_PX = 2; // small cushion from circle boundaries
 
+/** Design size (4:5). Layout scales as `width / LAYOUT_REF_W` when canvas is larger (hub only). */
+const LAYOUT_REF_W = 600;
+const LAYOUT_REF_H = 750;
+const MOBILE_CANVAS_MQ = '(max-width: 768px)';
+
+/** post1.html: fixed 600×750 + pixelDensity(1). post1.2 / gallery iframe: fit container + retina DPR. */
+function useHubCanvasSizing() {
+  return typeof window !== 'undefined'
+    && (window.__SPEC_GALLERY__ === true || window.__SPEC_STATIC_FINAL__ === true);
+}
+
+/** Set at the start of each `draw()`; used by label hit-tests. */
+let layoutMarginScale = 1;
+
+function canvasSize4x5ForContainer() {
+  if (!useHubCanvasSizing()) {
+    return { w: LAYOUT_REF_W, h: LAYOUT_REF_H };
+  }
+
+  const mobile = typeof window !== 'undefined' && window.matchMedia && window.matchMedia(MOBILE_CANVAS_MQ).matches;
+  const minW = mobile ? 140 : 280;
+  const floorW = mobile ? 160 : 280;
+  const floorH = mobile ? 200 : 350;
+
+  const main = typeof document !== 'undefined' ? document.querySelector('main') : null;
+  const rect = main
+    ? main.getBoundingClientRect()
+    : { width: typeof window !== 'undefined' ? window.innerWidth : LAYOUT_REF_W, height: typeof window !== 'undefined' ? window.innerHeight : LAYOUT_REF_H };
+  const boxW = Math.max(floorW, rect.width);
+  const boxH = Math.max(floorH, rect.height);
+  let w = Math.min(boxW, boxH * (LAYOUT_REF_W / LAYOUT_REF_H));
+  w = Math.floor(w);
+  let h = Math.round(w * (LAYOUT_REF_H / LAYOUT_REF_W));
+  if (h > boxH) {
+    h = Math.floor(boxH);
+    w = Math.floor(h * (LAYOUT_REF_W / LAYOUT_REF_H));
+    h = Math.round(w * (LAYOUT_REF_H / LAYOUT_REF_W));
+  }
+  const maxW = 1400;
+  const maxH = 1750;
+  const scaleDown = Math.min(1, maxW / w, maxH / h);
+  w = Math.floor(w * scaleDown);
+  w = Math.max(minW, w);
+  w = Math.min(w, Math.floor(boxW));
+  h = Math.round(w * (LAYOUT_REF_H / LAYOUT_REF_W));
+  if (h > boxH) {
+    h = Math.floor(boxH);
+    w = Math.floor(h * (LAYOUT_REF_W / LAYOUT_REF_H));
+    w = Math.max(minW, Math.min(w, Math.floor(boxW)));
+    h = Math.round(w * (LAYOUT_REF_H / LAYOUT_REF_W));
+  }
+  return { w, h };
+}
+
+/** Desktop backing-store scale: ceil(DPR), cap 4 — avoids blur on 3x / fractional DPR. */
+function sketchDesktopPixelDensity() {
+  const dpr = typeof window !== 'undefined' && window.devicePixelRatio ? window.devicePixelRatio : 1;
+  return Math.min(4, Math.max(1, Math.ceil(dpr)));
+}
+
+function applySketchCanvasDimensions() {
+  const { w, h } = canvasSize4x5ForContainer();
+  resizeCanvas(w, h);
+  if (useHubCanvasSizing()) {
+    const mobile = typeof window !== 'undefined' && window.matchMedia && window.matchMedia(MOBILE_CANVAS_MQ).matches;
+    pixelDensity(mobile ? 1 : sketchDesktopPixelDensity());
+  } else {
+    pixelDensity(1);
+  }
+}
+
 function preload() {
   uiFont = loadFont('genwan_latin_092725_1-R.otf');
 }
 
 function setup() {
-  // 4:5 canvas (portrait)
-  cnv = createCanvas(600, 750);
+  const { w, h } = canvasSize4x5ForContainer();
+  cnv = createCanvas(w, h);
+  if (useHubCanvasSizing()) {
+    const mobile = typeof window !== 'undefined' && window.matchMedia && window.matchMedia(MOBILE_CANVAS_MQ).matches;
+    pixelDensity(mobile ? 1 : sketchDesktopPixelDensity());
+  } else {
+    pixelDensity(1);
+  }
   const mainEl = (typeof document !== 'undefined') ? document.querySelector('main') : null;
   if (mainEl && cnv?.parent) cnv.parent(mainEl);
+  // post1.2 iframe: flex can resize `main` without a window resize — sync canvas + DPR.
+  if (useHubCanvasSizing() && typeof ResizeObserver !== 'undefined' && mainEl) {
+    let roT = null;
+    const ro = new ResizeObserver(() => {
+      clearTimeout(roT);
+      roT = setTimeout(() => {
+        if (typeof window !== 'undefined') window.dispatchEvent(new Event('resize'));
+      }, 60);
+    });
+    ro.observe(mainEl);
+  }
   // Allow native context menu on the canvas (Inspect, etc.). p5/WebGL helpers may disable it.
   if (cnv?.elt) cnv.elt.oncontextmenu = null;
 
@@ -138,6 +226,27 @@ function setup() {
     recordBtn.mousePressed(exportSequence);
     recordBtn.position(10, height + 10);
   }
+}
+
+function windowResized() {
+  if (!useHubCanvasSizing()) {
+    if (recordBtn) recordBtn.position(10, height + 10);
+    return;
+  }
+  applySketchCanvasDimensions();
+  cachedFinalLayouts = null;
+  cachedFinalLayoutsKey = '';
+  post2SolidInkG = null;
+  post2Sediment = null;
+  matterReady = false;
+  matterEngine = null;
+  matterWorld = null;
+  speckBodies = null;
+  speckWalls = null;
+  speckLetters = null;
+  frame4Ready = false;
+  if (recordBtn) recordBtn.position(10, height + 10);
+  if (staticFinalMode || galleryMode) redraw();
 }
 
 function pickRecorderMimeType() {
@@ -252,6 +361,8 @@ function matterAvailable() {
 function ensureMatterSpeckInitialized(targets, rFinal, labelX, labelY) {
   if (!matterAvailable() || matterReady) return;
 
+  const ls = width / LAYOUT_REF_W;
+
   const { Engine, World, Bodies, Body } = window.Matter;
   matterEngine = Engine.create();
   matterWorld = matterEngine.world;
@@ -261,7 +372,7 @@ function ensureMatterSpeckInitialized(targets, rFinal, labelX, labelY) {
   // Approximate circle boundaries using static segments.
   // Top circle (speck) is a wall, plus the bottom two circles act as walls too.
   const segs = 28;
-  const wallThickness = 16;
+  const wallThickness = 16 * ls;
   speckWalls = [];
 
   function addCircleWall(c, radius) {
@@ -282,12 +393,13 @@ function ensureMatterSpeckInitialized(targets, rFinal, labelX, labelY) {
   // Speck circle boundary
   addCircleWall(targets[0], rFinal);
   // Bottom circles: expand slightly so letters don't touch their borders
-  addCircleWall(targets[1], rFinal + BOTTOM_CIRCLE_WALL_PAD);
-  addCircleWall(targets[2], rFinal + BOTTOM_CIRCLE_WALL_PAD);
+  const wallPad = BOTTOM_CIRCLE_WALL_PAD * ls;
+  addCircleWall(targets[1], rFinal + wallPad);
+  addCircleWall(targets[2], rFinal + wallPad);
   World.add(matterWorld, speckWalls);
 
   // Build letter bodies around the label center
-  textSize(VENN_TEXT_SIZE);
+  textSize(VENN_TEXT_SIZE * ls);
   textAlign(LEFT, CENTER);
   const chars = WORDS[0].split('');
   const widths = chars.map((c) => textWidth(c));
@@ -331,7 +443,8 @@ function stepMatter(dtMs) {
 
 function drawMatterSpeckLetters(fx) {
   if (!matterReady || !speckBodies) return;
-  textSize(VENN_TEXT_SIZE);
+  const ls = layoutMarginScale || width / LAYOUT_REF_W;
+  textSize(VENN_TEXT_SIZE * ls);
   textAlign(CENTER, CENTER);
   const flashA = fx?.flashA || 0;
   const glowA = fx?.glowA || 0;
@@ -346,13 +459,13 @@ function drawMatterSpeckLetters(fx) {
       // Negative color glow for white text => black glow.
       ctx.save();
       ctx.shadowColor = `rgba(0,0,0,${Math.min(0.35, glowA / 255)})`;
-      ctx.shadowBlur = 16;
+      ctx.shadowBlur = 16 * ls;
       ctx.shadowOffsetX = 0;
       ctx.shadowOffsetY = 0;
     }
     fill(255, Math.max(220, flashA > 0 ? 255 : 220));
     stroke(0, flashA > 0 ? 120 : 90);
-    strokeWeight(flashA > 0 ? 1.25 : 1);
+    strokeWeight((flashA > 0 ? 1.25 : 1) * ls);
     text(l.ch, 0, 0);
     if (glowA > 0.5) ctx.restore();
     pop();
@@ -364,9 +477,11 @@ function inkAvailable() {
 }
 
 function ensurePost2SolidInkLayer(p5) {
-  if (!post2SolidInkG || post2SolidInkG.width !== width || post2SolidInkG.height !== height) {
+  const pd = Math.min(4, Math.max(1, p5.pixelDensity()));
+  if (!post2SolidInkG || post2SolidInkG.width !== width || post2SolidInkG.height !== height
+      || post2SolidInkG.pixelDensity() !== pd) {
     post2SolidInkG = p5.createGraphics(width, height);
-    post2SolidInkG.pixelDensity(1);
+    post2SolidInkG.pixelDensity(pd);
   }
   return post2SolidInkG;
 }
@@ -426,7 +541,7 @@ function ensurePost2Sediment(p5, targets, rFinal) {
   const rows = Math.max(12, Math.floor((maxY - minY) / cell));
 
   const key = `${Math.round(minX)}|${Math.round(minY)}|${cols}x${rows}|${Math.round(rFinal)}|` +
-    `${Math.round(targets[1].x)}|${Math.round(targets[1].y)}|${Math.round(targets[2].x)}|${Math.round(targets[2].y)}|${width}x${height}`;
+    `${Math.round(targets[1].x)}|${Math.round(targets[1].y)}|${Math.round(targets[2].x)}|${Math.round(targets[2].y)}|${width}x${height}|pd${p5.pixelDensity()}`;
   if (post2Sediment?.key === key) return;
 
   const allowed = new Uint8Array(cols * rows);
@@ -459,12 +574,13 @@ function ensurePost2Sediment(p5, targets, rFinal) {
   }
   for (let c = 0; c < cols; c++) if (hasCol[c]) allowedCols.push(c);
 
+  const pd = Math.min(4, Math.max(1, p5.pixelDensity()));
   const g = p5.createGraphics(width, height);
-  g.pixelDensity(1);
+  g.pixelDensity(pd);
   g.clear();
   const maskWorldG = POST2_SHOW_DESCRIPTION ? p5.createGraphics(width, height) : null;
   if (maskWorldG) {
-    maskWorldG.pixelDensity(1);
+    maskWorldG.pixelDensity(pd);
     maskWorldG.clear();
   }
 
@@ -648,7 +764,7 @@ function renderPost2SedimentLayer(p5, targets, rFinal) {
   g.noStroke();
   g.fill(0);
   g.textAlign(CENTER, CENTER);
-  g.textSize(18);
+  g.textSize(18 * layoutMarginScale);
   if (uiFont) g.textFont(uiFont);
   for (const p of s.particles) {
     g.text(p.ch, p.x, p.y);
@@ -674,7 +790,7 @@ function renderPost2SedimentLayer(p5, targets, rFinal) {
 
 function ensureSpeckLettersInitialized(labelCx, labelCy) {
   if (speckLetters) return;
-  textSize(VENN_TEXT_SIZE);
+  textSize(VENN_TEXT_SIZE * layoutMarginScale);
   textAlign(LEFT, CENTER);
   const chars = WORDS[0].split('');
   const widths = chars.map((c) => textWidth(c));
@@ -690,7 +806,7 @@ function ensureSpeckLettersInitialized(labelCx, labelCy) {
 
 function drawSpeckLetters() {
   if (!speckLetters) return;
-  textSize(VENN_TEXT_SIZE);
+  textSize(VENN_TEXT_SIZE * layoutMarginScale);
   textAlign(CENTER, CENTER);
   fill(0);
   noStroke();
@@ -712,7 +828,7 @@ function mousePressed() {
   if (mouseButton === RIGHT || mouseButton === 'right') return true;
   if (!isFrame4DraggableActive() || !speckLetters) return;
   const m = screenToWorld(mouseX, mouseY, frame4Cam);
-  textSize(VENN_TEXT_SIZE);
+  textSize(VENN_TEXT_SIZE * layoutMarginScale);
   const h = textAscent() + textDescent();
 
   // hit-test from top-most
@@ -738,7 +854,7 @@ function mouseDragged() {
   const m = screenToWorld(mouseX, mouseY, frame4Cam);
   const l = speckLetters[speckDragIdx];
 
-  textSize(VENN_TEXT_SIZE);
+  textSize(VENN_TEXT_SIZE * layoutMarginScale);
   const w = textWidth(l.ch);
   const h = textAscent() + textDescent();
   const pad = Math.max(w, h) * 0.6 + 3;
@@ -766,11 +882,13 @@ function distSq(ax, ay, bx, by) {
 }
 
 function pointInsideCircle(px, py, c, r) {
-  return distSq(px, py, c.x, c.y) < (r - LABEL_MARGIN_PX) * (r - LABEL_MARGIN_PX);
+  const m = LABEL_MARGIN_PX * layoutMarginScale;
+  return distSq(px, py, c.x, c.y) < (r - m) * (r - m);
 }
 
 function pointOutsideCircle(px, py, c, r) {
-  return distSq(px, py, c.x, c.y) > (r + LABEL_MARGIN_PX) * (r + LABEL_MARGIN_PX);
+  const m = LABEL_MARGIN_PX * layoutMarginScale;
+  return distSq(px, py, c.x, c.y) > (r + m) * (r + m);
 }
 
 function isExclusivePoint(px, py, i, centers, r) {
@@ -906,9 +1024,12 @@ function getFrame5SpeckFx() {
 function draw() {
   background(255);
 
+  layoutMarginScale = width / LAYOUT_REF_W;
+  const ls = layoutMarginScale;
+
   const cx = width / 2;
   const cy = height / 2;
-  const r = 120;
+  const r = 120 * ls;
   const size = r * 2;
 
   const galleryFrame = galleryMode
@@ -916,7 +1037,8 @@ function draw() {
     : 0;
 
   // Original 's' position in "spec" (centered at cx, cy) — keep s here before adding words
-  textSize(44);
+  const specTextPx = 44 * ls;
+  textSize(specTextPx);
   const twSpec = textWidth('spec');
   const twS = textWidth('s');
   const sCenterX = cx - twSpec / 2 + twS / 2;
@@ -933,10 +1055,12 @@ function draw() {
   // Solve: center = xLeft + (rightExtent - wIn)/2  =>  xLeft = cx - (rightExtent - wIn)/2
   const centeredLeftX = cx - (rightExtent - wIn) / 2;
 
+  const gapY = sGap * ls;
+  const stackNudge = WORD_STACK_VISUAL_Y * ls;
   const linePositions = [
-    { x: sCenterX, y: cy + WORD_STACK_VISUAL_Y - sGap },
-    { x: sCenterX, y: cy + WORD_STACK_VISUAL_Y },
-    { x: sCenterX, y: cy + WORD_STACK_VISUAL_Y + sGap },
+    { x: sCenterX, y: cy + stackNudge - gapY },
+    { x: sCenterX, y: cy + stackNudge },
+    { x: sCenterX, y: cy + stackNudge + gapY },
   ];
 
   function vennTargetsFor(offset) {
@@ -947,8 +1071,11 @@ function draw() {
     ];
   }
 
-  const vennTargetsBase = vennTargetsFor(VENN_OFFSET);
-  const vennTargetsSpread = vennTargetsFor(VENN_OFFSET * 1.35); // reduce triple-overlap region
+  const vennOff = VENN_OFFSET * ls;
+  const vennTargetsBase = vennTargetsFor(vennOff);
+  const vennTargetsSpread = vennTargetsFor(vennOff * 1.35); // reduce triple-overlap region
+  const vennD = VENN_SIZE_SCALED * ls;
+  const vennTextPx = VENN_TEXT_SIZE * ls;
   // Frame mapping:
   // 1: base, 2: spread, 3: spread+zoom, 4: motion 1->2->3 (ink), 5: motion 1->2->3 (sediment)
   const vennTargets = (galleryMode && (galleryFrame === 2 || galleryFrame === 3)) ? vennTargetsSpread : vennTargetsBase;
@@ -961,13 +1088,13 @@ function draw() {
 
   if (galleryMode) {
     // Always render the final Venn state; frames 3/4 are the zoom + motion.
-    const rFinal = VENN_SIZE_SCALED / 2;
-    const key = `${rFinal}|${VENN_TEXT_SIZE}|${LABEL_MIN_DIST_FRAC_TOP}|${LABEL_MAX_DIST_FRAC_TOP}|${LABEL_MIN_DIST_FRAC_BOTTOM}|${LABEL_MAX_DIST_FRAC_BOTTOM}|${LABEL_DIST_STEP}|${LABEL_MARGIN_PX}|${FIXED_LABEL_THETAS.join(',')}|` +
+    const rFinal = vennD / 2;
+    const key = `${rFinal}|${vennTextPx}|${LABEL_MIN_DIST_FRAC_TOP}|${LABEL_MAX_DIST_FRAC_TOP}|${LABEL_MIN_DIST_FRAC_BOTTOM}|${LABEL_MAX_DIST_FRAC_BOTTOM}|${LABEL_DIST_STEP}|${LABEL_MARGIN_PX}|${FIXED_LABEL_THETAS.join(',')}|` +
       `${vennTargets[0].x},${vennTargets[0].y}|${vennTargets[1].x},${vennTargets[1].y}|${vennTargets[2].x},${vennTargets[2].y}`;
     if (!cachedFinalLayouts || cachedFinalLayoutsKey !== key) {
       cachedFinalLayoutsKey = key;
       computeExclusiveLabelLayout.fixedThetas = FIXED_LABEL_THETAS;
-      cachedFinalLayouts = computeExclusiveLabelLayout(vennTargets, rFinal, WORDS, VENN_TEXT_SIZE);
+      cachedFinalLayouts = computeExclusiveLabelLayout(vennTargets, rFinal, WORDS, vennTextPx);
     }
 
     const finalLayouts = cachedFinalLayouts;
@@ -1022,7 +1149,7 @@ function draw() {
       // Stage A (0..0.45): 1 -> 2 (reduce overlap by spreading circles)
       const a = Math.max(0, Math.min(1, t / 0.45));
       const easeA = easeInOutCubic(a);
-      const curOffset = lerp(VENN_OFFSET, VENN_OFFSET * 1.35, easeA);
+      const curOffset = lerp(vennOff, vennOff * 1.35, easeA);
       const curTargets = vennTargetsFor(curOffset);
 
       // Stage B (0.45..1): 2 -> 3 (zoom into speck)
@@ -1037,7 +1164,7 @@ function draw() {
 
       // Recompute layouts for the current (animated) targets so labels follow.
       computeExclusiveLabelLayout.fixedThetas = FIXED_LABEL_THETAS;
-      const curLayouts = computeExclusiveLabelLayout(curTargets, rFinal, WORDS, VENN_TEXT_SIZE);
+      const curLayouts = computeExclusiveLabelLayout(curTargets, rFinal, WORDS, vennTextPx);
 
       // Publish final camera + circle bounds for dragging once motion is done.
       if (done) {
@@ -1050,7 +1177,7 @@ function draw() {
       if (done) {
         if (!matterReady) {
           const labelX = curSpeck.x + curLayouts[0].dx;
-          const labelY = curSpeck.y + curLayouts[0].dy + SPECK_MATTER_Y_OFFSET;
+          const labelY = curSpeck.y + curLayouts[0].dy + SPECK_MATTER_Y_OFFSET * ls;
           ensureMatterSpeckInitialized(curTargets, rFinal, labelX, labelY);
         }
         if (!inkStartMs) {
@@ -1080,13 +1207,13 @@ function draw() {
         const y = curTargets[i].y;
         noStroke();
         fill(245, 120);
-        ellipse(x, y, VENN_SIZE_SCALED, VENN_SIZE_SCALED);
+        ellipse(x, y, vennD, vennD);
         noFill();
         stroke(120, 220);
-        strokeWeight(3);
+        strokeWeight(3 * ls);
         strokeJoin(ROUND);
         strokeCap(ROUND);
-        ellipse(x, y, VENN_SIZE_SCALED, VENN_SIZE_SCALED);
+        ellipse(x, y, vennD, vennD);
       }
 
       // Fill layer (speck-exclusive region) — behind text
@@ -1155,7 +1282,7 @@ function draw() {
         } else {
           fill(0);
           textAlign(CENTER, CENTER);
-          textSize(VENN_TEXT_SIZE);
+          textSize(vennTextPx);
           noStroke();
           push();
           translate(wx, wy);
@@ -1180,11 +1307,11 @@ function draw() {
         const labelScreenX = cx + (labelWorldX - camX) * camZoom;
         const labelScreenY = screenY + (labelWorldY - camY) * camZoom;
 
-        const margin = 28;
-        const boxW = Math.min(520, width - margin * 2);
-        const boxH = Math.min(240, height * 0.34);
+        const margin = 28 * ls;
+        const boxW = Math.min(520 * ls, width - margin * 2);
+        const boxH = Math.min(240 * ls, height * 0.34);
         const boxX = Math.max(margin, Math.min(width - margin - boxW, labelScreenX - boxW / 2));
-        const boxYRaw = labelScreenY + 88;
+        const boxYRaw = labelScreenY + 88 * ls;
         const boxY = Math.max(margin, Math.min(height - margin - boxH, boxYRaw));
 
         const cam = { x: camX, y: camY, zoom: camZoom, screenY };
@@ -1211,11 +1338,11 @@ function draw() {
         const labelScreenX = cx + (labelWorldX - camX) * camZoom;
         const labelScreenY = screenY + (labelWorldY - camY) * camZoom;
 
-        const margin = 28;
-        const boxW = Math.min(520, width - margin * 2);
-        const boxH = Math.min(240, height * 0.34);
+        const margin = 28 * ls;
+        const boxW = Math.min(520 * ls, width - margin * 2);
+        const boxH = Math.min(240 * ls, height * 0.34);
         const boxX = Math.max(margin, Math.min(width - margin - boxW, labelScreenX - boxW / 2));
-        const boxYRaw = labelScreenY + 88;
+        const boxYRaw = labelScreenY + 88 * ls;
         const boxY = Math.max(margin, Math.min(height - margin - boxH, boxYRaw));
 
         {
@@ -1234,8 +1361,8 @@ function draw() {
             textAlign(LEFT, TOP);
             fill(255, 255 * a);
             noStroke();
-            textSize(16);
-            textLeading(20);
+            textSize(16 * ls);
+            textLeading(20 * ls);
             text(POST2_DESCRIPTION, boxX, boxY, boxW, boxH);
 
             drawingContext.restore();
@@ -1274,18 +1401,18 @@ function draw() {
       const y = vennTargets[i].y;
       noStroke();
       fill(245, 120);
-      ellipse(x, y, VENN_SIZE_SCALED, VENN_SIZE_SCALED);
+      ellipse(x, y, vennD, vennD);
 
       noFill();
       stroke(120, 220);
-      strokeWeight(3);
+      strokeWeight(3 * ls);
       strokeJoin(ROUND);
       strokeCap(ROUND);
-      ellipse(x, y, VENN_SIZE_SCALED, VENN_SIZE_SCALED);
+      ellipse(x, y, vennD, vennD);
 
       fill(0);
       textAlign(CENTER, CENTER);
-      textSize(VENN_TEXT_SIZE);
+      textSize(vennTextPx);
       noStroke();
       const wx = x + finalLayouts[i].dx;
       const wy = y + finalLayouts[i].dy;
@@ -1317,10 +1444,10 @@ function draw() {
     const specAlpha = easeOutCubic((t - DURATION_FADE * 0.4) / (DURATION_FADE * 0.6));
     const specOpacity = 255 * specAlpha;
 
-    textSize(44);
+    textSize(specTextPx);
     // Metric-based vertical centering for this font:
     // position text baseline so the glyph box center aligns to cy
-    const specBaselineY = cy + (textAscent() - textDescent()) / 2 + SPEC_VISUAL_Y;
+    const specBaselineY = cy + (textAscent() - textDescent()) / 2 + SPEC_VISUAL_Y * ls;
     textAlign(CENTER, BASELINE);
     fill(0, specOpacity);
     noStroke();
@@ -1348,8 +1475,8 @@ function draw() {
     translate(cx, cy);
     scale(wordZoom);
     translate(-cx, -cy);
-    textSize(44);
-    const specBaselineY = cy + (textAscent() - textDescent()) / 2 + SPEC_VISUAL_Y;
+    textSize(specTextPx);
+    const specBaselineY = cy + (textAscent() - textDescent()) / 2 + SPEC_VISUAL_Y * ls;
     textAlign(CENTER, BASELINE);
     fill(0);
     noStroke();
@@ -1400,14 +1527,14 @@ function draw() {
     translate(-cx, -cy);
 
     textAlign(CENTER, CENTER);
-    textSize(44);
+    textSize(specTextPx);
     fill(0);
     noStroke();
 
     if (easeWords <= 0) {
       // only three s's splitting at original 's' position in "spec"
       // Keep lowercase 's' consistent with word-building phase
-      textSize(44);
+      textSize(specTextPx);
       textAlign(CENTER, CENTER);
       for (let i = 0; i < 3; i++) {
         const y = lerp(cy, linePositions[i].y, easeSplit);
@@ -1415,7 +1542,7 @@ function draw() {
       }
     } else {
       // words building — left-align so 's' stays at original spec position
-      textSize(44);
+      textSize(specTextPx);
       // Smoothly recenter the 3-line block near the end of typing (avoid a sudden snap)
       // Start recentering during the last portion of the word-build phase.
       const RECENTER_START = 0.85; // start when typing progress reaches 85%
@@ -1489,7 +1616,7 @@ function draw() {
     translate(cx, cy);
     scale(wordZoom);
     translate(-cx, -cy);
-    textSize(44);
+    textSize(specTextPx);
     fill(0);
     noStroke();
 
@@ -1521,7 +1648,7 @@ function draw() {
     scale(WORD_ZOOM_OUT_END);
     translate(-cx, -cy);
     textAlign(LEFT, CENTER);
-    textSize(44);
+    textSize(specTextPx);
     fill(0);
     noStroke();
     text(WORDS[0], centeredLeftX, linePositions[0].y);
@@ -1547,16 +1674,16 @@ function draw() {
     // Start from the single (zoomed-out) circle and have it split into three circles.
     // Words follow their corresponding circle as it moves out.
     const baseColor = [235, 235, 235, 180];
-    const textSz = VENN_TEXT_SIZE; // text stays the same while circles scale up
+    const textSz = vennTextPx; // text stays the same while circles scale up
 
     // Compute final exclusive-region offsets + rotations ONCE and cache them to avoid twitches.
-    const rFinal = VENN_SIZE_SCALED / 2;
-    const key = `${rFinal}|${VENN_TEXT_SIZE}|${LABEL_MIN_DIST_FRAC_TOP}|${LABEL_MAX_DIST_FRAC_TOP}|${LABEL_MIN_DIST_FRAC_BOTTOM}|${LABEL_MAX_DIST_FRAC_BOTTOM}|${LABEL_DIST_STEP}|${LABEL_MARGIN_PX}|${FIXED_LABEL_THETAS.join(',')}|` +
+    const rFinal = vennD / 2;
+    const key = `${rFinal}|${vennTextPx}|${LABEL_MIN_DIST_FRAC_TOP}|${LABEL_MAX_DIST_FRAC_TOP}|${LABEL_MIN_DIST_FRAC_BOTTOM}|${LABEL_MAX_DIST_FRAC_BOTTOM}|${LABEL_DIST_STEP}|${LABEL_MARGIN_PX}|${FIXED_LABEL_THETAS.join(',')}|` +
       `${vennTargets[0].x},${vennTargets[0].y}|${vennTargets[1].x},${vennTargets[1].y}|${vennTargets[2].x},${vennTargets[2].y}`;
     if (!cachedFinalLayouts || cachedFinalLayoutsKey !== key) {
       cachedFinalLayoutsKey = key;
       computeExclusiveLabelLayout.fixedThetas = FIXED_LABEL_THETAS;
-      cachedFinalLayouts = computeExclusiveLabelLayout(vennTargets, rFinal, WORDS, VENN_TEXT_SIZE);
+      cachedFinalLayouts = computeExclusiveLabelLayout(vennTargets, rFinal, WORDS, vennTextPx);
     }
     const finalLayouts = cachedFinalLayouts;
 
@@ -1569,7 +1696,7 @@ function draw() {
     for (let i = 0; i < 3; i++) {
       const x = lerp(cx, vennTargets[i].x, ease);
       const y = lerp(cy, vennTargets[i].y, ease);
-      const d = lerp(size, VENN_SIZE_SCALED, ease);
+      const d = lerp(size, vennD, ease);
 
       const rC = lerp(baseColor[0], vennColors[i][0], ease);
       const gC = lerp(baseColor[1], vennColors[i][1], ease);
@@ -1592,7 +1719,7 @@ function draw() {
       //
       // Also, all three words share the same vertical 's' alignment at x = centeredLeftX,
       // but Inspect extends left because \"In\" is right-aligned to that same x.
-      textSize(44);
+      textSize(specTextPx);
       const w48 = textWidth(WORDS[i]);
       const inW = textWidth('in');
       const leftWorldX = (i === 1) ? (centeredLeftX - inW) : centeredLeftX; // Inspect vs others
@@ -1626,13 +1753,13 @@ function draw() {
     // Phase 7: hold final Venn diagram before looping
     // In static-final mode we can land directly in Phase 7 without ever running Phase 6,
     // so ensure final label layouts are computed here too.
-    const rFinal = VENN_SIZE_SCALED / 2;
-    const key = `${rFinal}|${VENN_TEXT_SIZE}|${LABEL_MIN_DIST_FRAC_TOP}|${LABEL_MAX_DIST_FRAC_TOP}|${LABEL_MIN_DIST_FRAC_BOTTOM}|${LABEL_MAX_DIST_FRAC_BOTTOM}|${LABEL_DIST_STEP}|${LABEL_MARGIN_PX}|${FIXED_LABEL_THETAS.join(',')}|` +
+    const rFinal = vennD / 2;
+    const key = `${rFinal}|${vennTextPx}|${LABEL_MIN_DIST_FRAC_TOP}|${LABEL_MAX_DIST_FRAC_TOP}|${LABEL_MIN_DIST_FRAC_BOTTOM}|${LABEL_MAX_DIST_FRAC_BOTTOM}|${LABEL_DIST_STEP}|${LABEL_MARGIN_PX}|${FIXED_LABEL_THETAS.join(',')}|` +
       `${vennTargets[0].x},${vennTargets[0].y}|${vennTargets[1].x},${vennTargets[1].y}|${vennTargets[2].x},${vennTargets[2].y}`;
     if (!cachedFinalLayouts || cachedFinalLayoutsKey !== key) {
       cachedFinalLayoutsKey = key;
       computeExclusiveLabelLayout.fixedThetas = FIXED_LABEL_THETAS;
-      cachedFinalLayouts = computeExclusiveLabelLayout(vennTargets, rFinal, WORDS, VENN_TEXT_SIZE);
+      cachedFinalLayouts = computeExclusiveLabelLayout(vennTargets, rFinal, WORDS, vennTextPx);
     }
 
     const finalLayouts = cachedFinalLayouts;
@@ -1645,20 +1772,20 @@ function draw() {
       } else {
         fill(...vennColors[i]);
       }
-      ellipse(x, y, VENN_SIZE_SCALED, VENN_SIZE_SCALED);
+      ellipse(x, y, vennD, vennD);
       if (staticFinalMode) {
         noFill();
         stroke(120, 220);
-        strokeWeight(3);
+        strokeWeight(3 * ls);
         strokeJoin(ROUND);
         strokeCap(ROUND);
-        ellipse(x, y, VENN_SIZE_SCALED, VENN_SIZE_SCALED);
+        ellipse(x, y, vennD, vennD);
       } else {
-        drawInkCircleOutline(x, y, VENN_SIZE_SCALED / 2, 120, 3, 700 + i);
+        drawInkCircleOutline(x, y, vennD / 2, 120, 3, 700 + i);
       }
       fill(0);
       textAlign(CENTER, CENTER);
-      textSize(VENN_TEXT_SIZE);
+      textSize(vennTextPx);
       noStroke();
       const wx = x + finalLayouts[i].dx;
       const wy = y + finalLayouts[i].dy;
@@ -1674,16 +1801,17 @@ function draw() {
 
 // --- minimalist ink-blobbing circle outline ---
 function drawInkCircleOutline(cx, cy, r, alpha = 120, weight = 3, seed = 0) {
+  const ls = width / LAYOUT_REF_W;
   const t = (millis() / 1000) * 0.35;
   const points = 140;
-  const amp = 2.2;     // subtle wobble
-  const blobAmp = 5.5; // occasional blobbing
+  const amp = 2.2 * ls;     // subtle wobble
+  const blobAmp = 5.5 * ls; // occasional blobbing
   const freq = 0.9;
 
   push();
   noFill();
   stroke(0, 0, 0, alpha);
-  strokeWeight(weight);
+  strokeWeight(weight * ls);
   strokeJoin(ROUND);
   strokeCap(ROUND);
 

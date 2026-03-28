@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>LiquidFun — gallery</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:     #e6e6e6;
+      --ink:    #141414;
+      --border: rgba(0,0,0,0.14);
+      --muted:  rgba(0,0,0,0.42);
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
+      overflow: hidden;
+    }
+
+    body {
+      background: var(--bg);
+      font-family: "Space Grotesk", sans-serif;
+      font-size: 1rem;
+      color: var(--ink);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .demo-root {
+      height: 100%;
+      max-height: 100%;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+
+    .frame-stage {
+      position: relative;
+      flex: 1 1 0;
+      min-height: 0;
+      min-width: 0;
+      width: 100%;
+      background: var(--bg);
+    }
+
+    .frame-stage iframe {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      border: none;
+      display: block;
+    }
+
+    .gallery-arrow {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      z-index: 4;
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      border: none;
+      background: transparent;
+      box-shadow: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: rgba(20, 20, 20, 0.5);
+      transition: color 0.15s, background 0.15s;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .gallery-arrow:hover {
+      color: var(--ink);
+      background: rgba(0, 0, 0, 0.05);
+    }
+
+    .gallery-arrow svg {
+      width: 22px;
+      height: 22px;
+      display: block;
+    }
+
+    .gallery-arrow--prev {
+      left: max(10px, env(safe-area-inset-left, 0px));
+    }
+
+    .gallery-arrow--next {
+      right: max(10px, env(safe-area-inset-right, 0px));
+    }
+
+    .demo-toolbar {
+      flex: 0 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.75rem;
+      padding: 10px 16px;
+      padding-bottom: max(10px, env(safe-area-inset-bottom, 0px));
+      border-top: 0.5px solid var(--border);
+      font-size: 0.88rem;
+      font-weight: 500;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+    }
+
+    .slide-title {
+      color: var(--ink);
+      font-weight: 500;
+    }
+
+    .slide-idx {
+      opacity: 0.75;
+    }
+  </style>
+</head>
+<body>
+  <div class="demo-root">
+    <div class="frame-stage">
+      <iframe id="demoFrame" title="LiquidFun demo"></iframe>
+      <button type="button" class="gallery-arrow gallery-arrow--prev" id="arrowPrev" aria-label="Previous demo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+      </button>
+      <button type="button" class="gallery-arrow gallery-arrow--next" id="arrowNext" aria-label="Next demo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg>
+      </button>
+    </div>
+    <div class="demo-toolbar">
+      <span class="slide-title" id="slideTitle"></span>
+      <span class="slide-idx" id="slideIdx"></span>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      var SLIDES = [
+        { src: 'phase-3-speckliquid-world-only.html', hash: 'liquidfun-world', title: 'World only' },
+        { src: 'phase-4-break-one-glyph-no-collision.html', hash: 'glyph-break', title: 'Break one glyph' },
+        { src: 'phase-4-speck-word.html', hash: 'speck-word', title: 'Speck word' },
+      ];
+
+      var HASH_TO_I = {};
+      for (var s = 0; s < SLIDES.length; s++) {
+        HASH_TO_I[SLIDES[s].hash] = s;
+      }
+
+      var iframe = document.getElementById('demoFrame');
+      var titleEl = document.getElementById('slideTitle');
+      var idxEl = document.getElementById('slideIdx');
+      var btnPrev = document.getElementById('arrowPrev');
+      var btnNext = document.getElementById('arrowNext');
+
+      var idx = 0;
+
+      function readHashIndex() {
+        var h = (location.hash || '').replace(/^#/, '').trim().toLowerCase();
+        if (HASH_TO_I.hasOwnProperty(h)) return HASH_TO_I[h];
+        return 0;
+      }
+
+      function setHashForIndex(i) {
+        var h = SLIDES[i].hash;
+        var url = location.pathname + location.search + '#' + h;
+        if (location.hash !== '#' + h) {
+          history.replaceState(null, '', url);
+        }
+      }
+
+      function show(i) {
+        var n = SLIDES.length;
+        idx = ((i % n) + n) % n;
+        iframe.src = SLIDES[idx].src;
+        titleEl.textContent = SLIDES[idx].title;
+        idxEl.textContent = (idx + 1) + ' / ' + n;
+        setHashForIndex(idx);
+      }
+
+      function step(d) {
+        show(idx + d);
+      }
+
+      btnPrev.addEventListener('click', function () { step(-1); });
+      btnNext.addEventListener('click', function () { step(1); });
+
+      window.addEventListener('hashchange', function () {
+        var j = readHashIndex();
+        if (j !== idx) {
+          idx = j;
+          iframe.src = SLIDES[idx].src;
+          titleEl.textContent = SLIDES[idx].title;
+          idxEl.textContent = (idx + 1) + ' / ' + SLIDES.length;
+        }
+      });
+
+      window.addEventListener('keydown', function (e) {
+        if (e.key === 'ArrowLeft') {
+          e.preventDefault();
+          step(-1);
+        } else if (e.key === 'ArrowRight') {
+          e.preventDefault();
+          step(1);
+        }
+      });
+
+      idx = readHashIndex();
+      iframe.src = SLIDES[idx].src;
+      titleEl.textContent = SLIDES[idx].title;
+      idxEl.textContent = (idx + 1) + ' / ' + SLIDES.length;
+      setHashForIndex(idx);
+    })();
+  </script>
+</body>
+</html>

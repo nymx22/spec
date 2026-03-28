@@ -77,11 +77,11 @@
     }
 
     .demo-main canvas {
-      max-width: 100% !important;
-      max-height: 100% !important;
-      width: auto !important;
-      height: auto !important;
-      vertical-align: middle;
+      display: block;
+      width: 100% !important;
+      height: 100% !important;
+      object-fit: contain;
+      object-position: center;
     }
 
     main { display: block; }
@@ -101,6 +101,7 @@
     <main class="demo-main"></main>
   </div>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.8.0/p5.js"></script>
+  <script src="../canvasFit4x5.js"></script>
   <script src="../lib/liquidfun.js"></script>
   <script src="../speckLiquidFun.js"></script>
   <script src="../liquidfunDemo.js"></script>

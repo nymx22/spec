@@ -3,7 +3,7 @@
 
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Venn Diagram (Frames)</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.8.0/p5.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.20.0/matter.min.js"></script>
@@ -28,23 +28,87 @@
       background: #fff;
     }
 
-    .demo-main {
+    .frame-stage {
       flex: 1 1 0;
       min-height: 0;
       min-width: 0;
+      width: 50%;
+      max-width: 100%;
+      align-self: center;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      box-sizing: border-box;
+      padding-top: max(18px, env(safe-area-inset-top, 0px));
+      padding-bottom: max(18px, env(safe-area-inset-bottom, 0px));
+      padding-left: max(10px, env(safe-area-inset-left, 0px));
+      padding-right: max(10px, env(safe-area-inset-right, 0px));
+    }
+
+    /* Row: arrows sit beside the canvas strip (LiquidFun-style controls), not the 50% column edges. */
+    .gallery-content {
+      display: flex;
+      flex-direction: row;
+      align-items: stretch;
       width: 100%;
+      height: 100%;
+      min-height: 0;
+      min-width: 0;
+      gap: 4px;
+    }
+
+    .gallery-content .demo-main {
+      flex: 1 1 auto;
+      min-width: 0;
+      min-height: 0;
       display: flex;
       align-items: center;
       justify-content: center;
       overflow: hidden;
     }
 
+    .gallery-arrow {
+      position: relative;
+      z-index: 4;
+      flex: 0 0 44px;
+      width: 44px;
+      height: 44px;
+      align-self: center;
+      border-radius: 50%;
+      border: none;
+      background: transparent;
+      box-shadow: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: rgba(20, 20, 20, 0.5);
+      transition: color 0.15s, background 0.15s;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .gallery-arrow:hover {
+      color: #141414;
+      background: rgba(0, 0, 0, 0.05);
+    }
+
+    .gallery-arrow svg {
+      width: 22px;
+      height: 22px;
+      display: block;
+    }
+
+    /*
+     * Fill the stage and letterbox the bitmap (4:5). Do not use width/height: auto !important —
+     * that overrides p5’s inline logical size and uses wrong intrinsic sizing inside the hub iframe.
+     */
     .demo-main canvas {
-      max-width: 100% !important;
-      max-height: 100% !important;
-      width: auto !important;
-      height: auto !important;
-      vertical-align: middle;
+      display: block;
+      width: 100% !important;
+      height: 100% !important;
+      object-fit: contain;
+      object-position: center;
     }
 
     main { display: block; }
@@ -61,21 +125,6 @@
       user-select: none;
     }
 
-    .controls {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-    button {
-      appearance: none;
-      border: 1px solid #ddd;
-      background: #fff;
-      padding: 10px 14px;
-      border-radius: 10px;
-      font: 14px/1.1 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-      cursor: pointer;
-    }
-    button:active { transform: translateY(1px); }
     .counter {
       font: 14px/1.1 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
       color: #333;
@@ -85,7 +134,6 @@
 
     @media (max-width: 520px) {
       .demo-toolbar { padding: 10px 12px; }
-      button { padding: 8px 12px; font-size: 13px; }
       .counter { font-size: 13px; min-width: 52px; }
     }
   </style>
@@ -93,13 +141,19 @@
 
 <body>
   <div class="demo-root">
-    <main class="demo-main"></main>
-    <div class="demo-toolbar">
-      <div class="controls">
-        <button id="prev" type="button">Prev</button>
-        <div id="counter" class="counter">1 / 2</div>
-        <button id="next" type="button">Next</button>
+    <div class="frame-stage">
+      <div class="gallery-content">
+        <button type="button" class="gallery-arrow gallery-arrow--prev" id="galleryPrev" aria-label="Previous frame">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+        </button>
+        <main class="demo-main"></main>
+        <button type="button" class="gallery-arrow gallery-arrow--next" id="galleryNext" aria-label="Next frame">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg>
+        </button>
       </div>
+    </div>
+    <div class="demo-toolbar">
+      <div id="counter" class="counter">1 / 5</div>
     </div>
   </div>
   <script>
@@ -122,8 +176,17 @@
       if (typeof window.redraw === 'function') window.redraw();
     }
 
-    document.getElementById('prev').addEventListener('click', () => gotoFrame(-1));
-    document.getElementById('next').addEventListener('click', () => gotoFrame(1));
+    document.getElementById('galleryPrev').addEventListener('click', () => gotoFrame(-1));
+    document.getElementById('galleryNext').addEventListener('click', () => gotoFrame(1));
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        gotoFrame(-1);
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        gotoFrame(1);
+      }
+    });
     updateUI();
   </script>
   <script src="sketch.js"></script>

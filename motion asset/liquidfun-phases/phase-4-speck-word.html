@@ -72,11 +72,11 @@
     }
 
     .demo-main canvas {
-      max-width: 100% !important;
-      max-height: 100% !important;
-      width: auto !important;
-      height: auto !important;
-      vertical-align: middle;
+      display: block;
+      width: 100% !important;
+      height: 100% !important;
+      object-fit: contain;
+      object-position: center;
     }
 
     .demo-meta {
@@ -94,7 +94,7 @@
       border-radius: 999px;
       background: transparent;
       cursor: pointer;
-      font-family: inherit;
+      font-family: "Space Grotesk", sans-serif;
       font-size: 1rem;
       font-weight: 500;
       letter-spacing: 0.06em;
@@ -102,6 +102,15 @@
       transition: color 0.15s, border-color 0.15s;
     }
     button:hover { color: var(--ink); border-color: rgba(0,0,0,0.28); }
+    button:disabled {
+      cursor: default;
+      color: var(--muted);
+      opacity: 0.72;
+    }
+    button:disabled:hover {
+      color: var(--muted);
+      border-color: var(--border);
+    }
     label { font-size: 1rem; font-weight: 500; color: var(--muted); letter-spacing: 0.06em; display: flex; align-items: center; gap: 6px; }
     input#glyphInput {
       width: 120px;
@@ -151,6 +160,7 @@
   </div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.8.0/p5.js"></script>
+  <script src="../canvasFit4x5.js"></script>
   <script src="../lib/liquidfun.js"></script>
   <script>
     // Phase 4 variant: word “speck” (genwanlatin) inside the circle — same break, stagger, mask trim, fade,
@@ -282,8 +292,9 @@
     }
 
     function setup() {
-      var cnv = createCanvas(540, 540);
-      pixelDensity(1);
+      var dim = window.specCanvas4x5 ? specCanvas4x5.compute() : { w: 480, h: 600 };
+      var cnv = createCanvas(dim.w, dim.h);
+      if (window.specCanvas4x5) specCanvas4x5.applyPixelDensity(window);
       var mainEl = document.querySelector('main');
       if (mainEl && cnv && cnv.parent) cnv.parent(mainEl);
       initWorld();
@@ -296,6 +307,15 @@
       if (document.fonts && document.fonts.load) {
         document.fonts.load('400 ' + CFG.wordTextSize + 'px ' + SPEC_TITLE_FONT).catch(function () {});
       }
+      if (window.specCanvas4x5 && specCanvas4x5.installMainResizeDispatch) specCanvas4x5.installMainResizeDispatch();
+    }
+
+    function windowResized() {
+      if (!window.specCanvas4x5) return;
+      var dim = specCanvas4x5.compute();
+      resizeCanvas(dim.w, dim.h);
+      specCanvas4x5.applyPixelDensity(window);
+      resetScene();
     }
 
     function createParticleSystemDef(LF) {
@@ -620,6 +640,19 @@
           ' · cap ' +
           MAX_PATCH_GROUPS;
       }
+      syncBreakButtonState();
+    }
+
+    function syncBreakButtonState() {
+      var btn = document.getElementById('breakBtn');
+      if (!btn) return;
+      if (phase4.isBreaking) {
+        btn.disabled = true;
+        btn.textContent = 'Reset first';
+      } else {
+        btn.disabled = false;
+        btn.textContent = 'Break Glyph';
+      }
     }
 
     function startGlyphDisintegration(ch) {
@@ -627,6 +660,7 @@
       phase4.isBreaking = true;
       phase4.breakFadeStartMs = millis();
       releasePreSpawnedParticles();
+      syncBreakButtonState();
     }
 
     function spawnGlyphParticleGroups() {
@@ -819,6 +853,7 @@
           if (!phase4.isBreaking) prepareGlyph(getGlyph());
         });
       }
+      syncBreakButtonState();
     }
 
     function draw() {
