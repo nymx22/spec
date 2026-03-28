@@ -147,7 +147,7 @@
     <div class="frame" id="frame" aria-label="Mobile device frame">
       <iframe
         id="appFrame"
-        src="index.html"
+        src="../index.html"
         title="spec — embedded at mobile width">
       </iframe>
     </div>
@@ -202,7 +202,7 @@
       }
 
       document.getElementById('btnReload').addEventListener('click', function () {
-        var entry = iframe.getAttribute('src') || 'index.html';
+        var entry = iframe.getAttribute('src') || '../index.html';
         iframe.src = entry;
       });
 

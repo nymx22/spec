@@ -110,10 +110,12 @@ const LAYOUT_REF_W = 600;
 const LAYOUT_REF_H = 750;
 const MOBILE_CANVAS_MQ = '(max-width: 768px)';
 
-/** post1.html: fixed 600×750 + pixelDensity(1). post1.2 / gallery iframe: fit container + retina DPR. */
+/** post1 plain: fixed 600×750 + pixelDensity(1). Hub iframes (gallery, static final, post1 gallery shell): fit container + retina DPR. */
 function useHubCanvasSizing() {
   return typeof window !== 'undefined'
-    && (window.__SPEC_GALLERY__ === true || window.__SPEC_STATIC_FINAL__ === true);
+    && (window.__SPEC_GALLERY__ === true
+      || window.__SPEC_STATIC_FINAL__ === true
+      || window.__SPEC_POST1_GALLERY__ === true);
 }
 
 /** Set at the start of each `draw()`; used by label hit-tests. */
@@ -177,7 +179,7 @@ function applySketchCanvasDimensions() {
 }
 
 function preload() {
-  uiFont = loadFont('genwan_latin_092725_1-R.otf');
+  uiFont = loadFont('../fonts/genwan_latin_092725_1-R.otf');
 }
 
 function setup() {
@@ -221,7 +223,7 @@ function setup() {
     sequenceStartMs = millis();
   }
 
-  if (!staticFinalMode && !galleryMode) {
+  if (!staticFinalMode && !galleryMode && !(typeof window !== 'undefined' && window.__SPEC_POST1_GALLERY__ === true)) {
     recordBtn = createButton('Export MP4');
     recordBtn.mousePressed(exportSequence);
     recordBtn.position(10, height + 10);

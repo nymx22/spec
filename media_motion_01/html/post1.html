@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Venn Diagram</title>
+  <script>
+    window.__SPEC_POST1_GALLERY__ = true;
+  </script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.8.0/p5.js"></script>
+  <style>
+    html, body {
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+    }
+
+    body {
+      background: #fff;
+    }
+
+    .demo-root {
+      height: 100%;
+      max-height: 100%;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      background: #fff;
+    }
+
+    .frame-stage {
+      flex: 1 1 0;
+      min-height: 0;
+      min-width: 0;
+      width: 50%;
+      max-width: 100%;
+      align-self: center;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      box-sizing: border-box;
+      padding-top: max(18px, env(safe-area-inset-top, 0px));
+      padding-bottom: max(18px, env(safe-area-inset-bottom, 0px));
+      padding-left: max(10px, env(safe-area-inset-left, 0px));
+      padding-right: max(10px, env(safe-area-inset-right, 0px));
+    }
+
+    .gallery-content {
+      display: flex;
+      flex-direction: row;
+      align-items: stretch;
+      width: 100%;
+      height: 100%;
+      min-height: 0;
+      min-width: 0;
+      gap: 4px;
+    }
+
+    .gallery-content .demo-main {
+      flex: 1 1 auto;
+      min-width: 0;
+      min-height: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* Keep both panels in the layout tree (not display:none) so the browser can load/decode the video. */
+    .slide-panel {
+      display: flex;
+      position: absolute;
+      inset: 0;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-width: 0;
+      min-height: 0;
+      visibility: hidden;
+      opacity: 0;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .slide-panel.is-active {
+      visibility: visible;
+      opacity: 1;
+      pointer-events: auto;
+      z-index: 1;
+    }
+
+    .slide-panel main {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 0;
+      width: 100%;
+      box-sizing: border-box;
+    }
+
+    .slide-panel--video video {
+      display: block;
+      width: 100%;
+      height: 100%;
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+      object-position: center;
+      background: #fff;
+    }
+
+    .gallery-arrow {
+      position: relative;
+      z-index: 4;
+      flex: 0 0 44px;
+      width: 44px;
+      height: 44px;
+      align-self: center;
+      border-radius: 50%;
+      border: none;
+      background: transparent;
+      box-shadow: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: rgba(20, 20, 20, 0.5);
+      transition: color 0.15s, background 0.15s;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .gallery-arrow:hover {
+      color: #141414;
+      background: rgba(0, 0, 0, 0.05);
+    }
+
+    .gallery-arrow svg {
+      width: 22px;
+      height: 22px;
+      display: block;
+    }
+
+    .slide-panel main canvas {
+      display: block;
+      width: 100% !important;
+      height: 100% !important;
+      object-fit: contain;
+      object-position: center;
+    }
+
+    .demo-toolbar {
+      flex: 0 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 12px 16px;
+      padding-bottom: max(12px, env(safe-area-inset-bottom, 0px));
+      border-top: 1px solid #eee;
+      user-select: none;
+    }
+
+    .counter {
+      font: 14px/1.1 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      color: #333;
+      min-width: 60px;
+      text-align: center;
+    }
+
+    @media (max-width: 520px) {
+      .demo-toolbar { padding: 10px 12px; }
+      .counter { font-size: 13px; min-width: 52px; }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="demo-root">
+    <div class="frame-stage">
+      <div class="gallery-content">
+        <button type="button" class="gallery-arrow gallery-arrow--prev" id="galleryPrev" aria-label="Previous">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+        </button>
+        <div class="demo-main">
+          <div id="slideSketch" class="slide-panel slide-panel--sketch is-active" role="group" aria-label="Interactive sketch">
+            <main></main>
+          </div>
+          <div id="slideVideo" class="slide-panel slide-panel--video" role="group" aria-label="Recorded motion" aria-hidden="true">
+            <video id="specVideo"
+                   controls
+                   playsInline
+                   preload="auto"
+                   title="Venn motion export">
+              <!-- MP4: plays in Chrome / Edge / Firefox; MOV often Safari-only. -->
+              <source src="../video/specvenn.mp4" type="video/mp4" />
+              <source src="../video/specvenn.mov" type="video/quicktime" />
+            </video>
+          </div>
+        </div>
+        <button type="button" class="gallery-arrow gallery-arrow--next" id="galleryNext" aria-label="Next">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="demo-toolbar">
+      <div id="counter" class="counter">1 / 2</div>
+    </div>
+  </div>
+  <script src="../js/sketch.js"></script>
+  <script>
+    (function () {
+      var TOTAL_SLIDES = 2;
+      var slideIndex = 1;
+      var sketchPanel = document.getElementById('slideSketch');
+      var videoPanel = document.getElementById('slideVideo');
+      var video = document.getElementById('specVideo');
+      var counterEl = document.getElementById('counter');
+
+      video.addEventListener('error', function () {
+        var err = video.error;
+        if (err) {
+          console.warn('[specVideo] decode/load failed', err.code, err.message || '');
+        }
+      });
+
+      function applySlide() {
+        counterEl.textContent = slideIndex + ' / ' + TOTAL_SLIDES;
+        if (slideIndex === 1) {
+          sketchPanel.classList.add('is-active');
+          videoPanel.classList.remove('is-active');
+          videoPanel.setAttribute('aria-hidden', 'true');
+          sketchPanel.removeAttribute('aria-hidden');
+          video.pause();
+          if (typeof loop === 'function') loop();
+        } else {
+          sketchPanel.classList.remove('is-active');
+          videoPanel.classList.add('is-active');
+          sketchPanel.setAttribute('aria-hidden', 'true');
+          videoPanel.removeAttribute('aria-hidden');
+          if (typeof noLoop === 'function') noLoop();
+          // After becoming visible, nudge load (fixes lazy pipelines that ignored hidden subtree).
+          requestAnimationFrame(function () {
+            if (video.error) {
+              try {
+                video.load();
+              } catch (e) { /* ignore */ }
+            }
+          });
+        }
+      }
+
+      function step(d) {
+        slideIndex = Math.max(1, Math.min(TOTAL_SLIDES, slideIndex + d));
+        applySlide();
+      }
+
+      document.getElementById('galleryPrev').addEventListener('click', function () { step(-1); });
+      document.getElementById('galleryNext').addEventListener('click', function () { step(1); });
+      window.addEventListener('keydown', function (e) {
+        if (e.key === 'ArrowLeft') {
+          e.preventDefault();
+          step(-1);
+        } else if (e.key === 'ArrowRight') {
+          e.preventDefault();
+          step(1);
+        }
+      });
+
+      applySlide();
+    })();
+  </script>
+</body>
+
+</html>

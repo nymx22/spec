@@ -10,7 +10,7 @@ const SEDIMENT_CHARS = "speck";
 let sediment = null;
 
 function preload() {
-  uiFont = loadFont('genwan_latin_092725_1-R.otf');
+  uiFont = loadFont('../fonts/genwan_latin_092725_1-R.otf');
 }
 
 function setup() {
