@@ -22,23 +22,72 @@
     }
     html { font-size: 18px; }
 
-    body {
+    html, body {
+      height: 100%;
       margin: 0;
-      min-height: 100vh;
+      overflow: hidden;
+    }
+
+    body {
       background: var(--bg);
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 12px;
-      padding: 16px;
       font-family: "Space Grotesk", sans-serif;
       font-size: 1rem;
       font-weight: 400;
       color: var(--ink);
       -webkit-font-smoothing: antialiased;
     }
-    .row { display: flex; gap: 8px; align-items: center; }
+
+    /* Fills iframe / mobile: toolbar + canvas share viewport */
+    .demo-root {
+      height: 100%;
+      max-height: 100%;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      background: var(--bg);
+    }
+
+    .demo-toolbar {
+      flex: 0 0 auto;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      row-gap: 10px;
+      padding: 10px 12px;
+      padding-bottom: 12px;
+      border-bottom: 0.5px solid var(--border);
+    }
+
+    .demo-main {
+      flex: 1 1 0;
+      min-height: 0;
+      min-width: 0;
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    .demo-main canvas {
+      max-width: 100% !important;
+      max-height: 100% !important;
+      width: auto !important;
+      height: auto !important;
+      vertical-align: middle;
+    }
+
+    .demo-meta {
+      flex: 1 1 100%;
+      text-align: center;
+      font-size: 0.85rem;
+      color: var(--muted);
+      line-height: 1.35;
+    }
+
+    .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: center; }
     button {
       padding: 6px 14px;
       border: 0.5px solid var(--border);
@@ -78,17 +127,28 @@
     input[type="color"]#glyphColor::-webkit-color-swatch-wrapper { padding: 2px; }
     input[type="color"]#glyphColor::-webkit-color-swatch { border-radius: 4px; border: none; }
     main { display: block; }
+
+    @media (max-width: 520px) {
+      html { font-size: 15px; }
+      .demo-toolbar { padding: 8px 10px; }
+      button { padding: 8px 12px; font-size: 0.88rem; }
+      label { font-size: 0.88rem; }
+    }
   </style>
 </head>
 <body>
-  <div class="row">
-    <button id="breakBtn" type="button">Break Glyph</button>
-    <button id="resetBtn" type="button">Reset</button>
-    <label title="Glyph &amp; particle color">Color <input id="glyphColor" type="color" value="#ffffff" /></label>
-    <label>Word <input id="glyphInput" type="text" maxlength="12" value="speck" title="Letters only" spellcheck="false" /></label>
-    <span id="particleInfo" style="margin-left:10px;color:var(--muted);font-size:0.9rem;"></span>
+  <div class="demo-root">
+    <div class="demo-toolbar">
+      <div class="row">
+        <button id="breakBtn" type="button">Break Glyph</button>
+        <button id="resetBtn" type="button">Reset</button>
+        <label title="Glyph &amp; particle color">Color <input id="glyphColor" type="color" value="#ffffff" /></label>
+        <label>Word <input id="glyphInput" type="text" maxlength="12" value="speck" title="Letters only" spellcheck="false" /></label>
+      </div>
+      <span id="particleInfo" class="demo-meta"></span>
+    </div>
+    <main class="demo-main"></main>
   </div>
-  <main></main>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.8.0/p5.js"></script>
   <script src="../lib/liquidfun.js"></script>

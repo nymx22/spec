@@ -1,0 +1,23 @@
+---
+description: Keep a Changelog + SemVer — update CHANGELOG.md for notable changes
+alwaysApply: true
+---
+
+# Changelog (Keep a Changelog + SemVer)
+
+When you make **notable, user-visible** changes to this repo (UI, behavior, docs users rely on, new pages, breaking API or paths), add entries under **`## [Unreleased]`** in `CHANGELOG.md` at the project root.
+
+## Format
+
+- Follow **[Keep a Changelog](https://keepachangelog.com/en/1.1.0/)** with **`### Added`**, **`### Changed`**, **`### Fixed`**, **`### Removed`**, **`### Deprecated`**, **`### Security`** as needed (omit empty sections in `[Unreleased]` if you prefer, or keep placeholders—match the existing file).
+- **`[Unreleased]` must stay at the top.** New bullets go there first. When cutting a release, **move** those bullets under a new version heading and leave `[Unreleased]` ready for the next cycle.
+- Version headings: **`## [X.Y.Z] — YYYY-MM-DD`** (ISO 8601 date after an em dash). Link the version to GitHub compare when possible, e.g. `## [1.4.0](https://github.com/nymx22/spec/compare/v1.3.0...v1.4.0) — 2026-03-27`.
+- **Breaking changes:** at the **top** of that version block (before `###` sections), add a blockquote, e.g. `> **Breaking:** removed X — migrate using Y.`
+
+## Writing style
+
+- Write for **humans**: impact and behavior, not raw diffs or commit titles.
+- You may reference PR/issue numbers in parentheses at the end of a line, e.g. `(#312)`.
+- Do **not** use commit SHAs, vague lines like “various fixes,” or internal-only refactors unless they materially affect users or integrators.
+
+Do **not** add a separate changelog file; use **`CHANGELOG.md`** only unless the user asks otherwise.

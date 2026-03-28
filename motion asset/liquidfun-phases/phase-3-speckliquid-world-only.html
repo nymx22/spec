@@ -15,32 +15,91 @@
     }
     html { font-size: 18px; }
 
-    body {
+    html, body {
+      height: 100%;
       margin: 0;
-      min-height: 100vh;
+      overflow: hidden;
+    }
+
+    body {
       background: var(--bg);
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 12px;
-      padding: 16px;
       font-family: "Space Grotesk", sans-serif;
       font-size: 1rem;
       font-weight: 400;
       color: var(--ink);
       -webkit-font-smoothing: antialiased;
     }
-    h1 { font-size: 1rem; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin: 0; }
-    p { margin: 0; max-width: 32rem; text-align: center; color: var(--muted); }
-    code { font-family: monospace; font-size: 1rem; }
+
+    .demo-root {
+      height: 100%;
+      max-height: 100%;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      background: var(--bg);
+    }
+
+    .demo-header {
+      flex: 0 0 auto;
+      padding: 12px 14px 10px;
+      border-bottom: 0.5px solid rgba(0,0,0,0.1);
+      text-align: center;
+    }
+
+    .demo-header h1 {
+      font-size: 0.95rem;
+      font-weight: 500;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin: 0 0 0.35rem;
+    }
+
+    .demo-header p {
+      margin: 0 auto;
+      max-width: 32rem;
+      font-size: 0.9rem;
+      line-height: 1.45;
+      color: var(--muted);
+    }
+
+    .demo-header code { font-family: ui-monospace, monospace; font-size: 0.88em; }
+
+    .demo-main {
+      flex: 1 1 0;
+      min-height: 0;
+      min-width: 0;
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    .demo-main canvas {
+      max-width: 100% !important;
+      max-height: 100% !important;
+      width: auto !important;
+      height: auto !important;
+      vertical-align: middle;
+    }
+
     main { display: block; }
+
+    @media (max-width: 520px) {
+      html { font-size: 15px; }
+      .demo-header { padding: 10px 12px 8px; }
+    }
   </style>
 </head>
 <body>
-  <h1>2 — world only</h1>
-  <p>Uses <code>SpecSpeckLiquid.initDemoWorld</code> (no Matter, no sketch.js).</p>
-  <main></main>
+  <div class="demo-root">
+    <header class="demo-header">
+      <h1>2 — world only</h1>
+      <p>Uses <code>SpecSpeckLiquid.initDemoWorld</code> (no Matter, no sketch.js).</p>
+    </header>
+    <main class="demo-main"></main>
+  </div>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.8.0/p5.js"></script>
   <script src="../lib/liquidfun.js"></script>
   <script src="../speckLiquidFun.js"></script>

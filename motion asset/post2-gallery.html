@@ -9,27 +9,62 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.20.0/matter.min.js"></script>
   <script src="inkBlob.js"></script>
   <style>
-    body {
+    html, body {
+      height: 100%;
       margin: 0;
-      min-height: 100vh;
-      background: #fff;
-      display: flex;
-      justify-content: center;
-      align-items: center;
+      overflow: hidden;
     }
-    .wrap {
+
+    body {
+      background: #fff;
+    }
+
+    .demo-root {
+      height: 100%;
+      max-height: 100%;
+      min-height: 0;
       display: flex;
       flex-direction: column;
-      align-items: center;
-      gap: 14px;
-      padding: 24px 16px;
+      background: #fff;
     }
+
+    .demo-main {
+      flex: 1 1 0;
+      min-height: 0;
+      min-width: 0;
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    .demo-main canvas {
+      max-width: 100% !important;
+      max-height: 100% !important;
+      width: auto !important;
+      height: auto !important;
+      vertical-align: middle;
+    }
+
     main { display: block; }
+
+    .demo-toolbar {
+      flex: 0 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 12px 16px;
+      padding-bottom: max(12px, env(safe-area-inset-bottom, 0px));
+      border-top: 1px solid #eee;
+      user-select: none;
+    }
+
     .controls {
       display: flex;
       align-items: center;
       gap: 10px;
-      user-select: none;
     }
     button {
       appearance: none;
@@ -47,16 +82,24 @@
       min-width: 60px;
       text-align: center;
     }
+
+    @media (max-width: 520px) {
+      .demo-toolbar { padding: 10px 12px; }
+      button { padding: 8px 12px; font-size: 13px; }
+      .counter { font-size: 13px; min-width: 52px; }
+    }
   </style>
 </head>
 
 <body>
-  <div class="wrap">
-    <main></main>
-    <div class="controls">
-      <button id="prev" type="button">Prev</button>
-      <div id="counter" class="counter">1 / 2</div>
-      <button id="next" type="button">Next</button>
+  <div class="demo-root">
+    <main class="demo-main"></main>
+    <div class="demo-toolbar">
+      <div class="controls">
+        <button id="prev" type="button">Prev</button>
+        <div id="counter" class="counter">1 / 2</div>
+        <button id="next" type="button">Next</button>
+      </div>
     </div>
   </div>
   <script>

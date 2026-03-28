@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <!-- Wrapper page: fixed logical width so outer scale stays predictable when resizing the window. -->
+  <meta name="viewport" content="width=375, initial-scale=1.0" />
+  <title>Mobile preview — spec</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      gap: 1rem;
+      padding: 1rem;
+      background: #141416;
+      color: #e6e6ea;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      font-size: 14px;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .chrome {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.65rem;
+      max-width: min(100%, 720px);
+    }
+
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .toolbar button {
+      appearance: none;
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      background: rgba(255, 255, 255, 0.06);
+      color: #e6e6ea;
+      padding: 0.45rem 0.85rem;
+      border-radius: 8px;
+      font: inherit;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+    }
+
+    .toolbar button:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: rgba(255, 255, 255, 0.28);
+    }
+
+    .toolbar button:active {
+      transform: translateY(1px);
+    }
+
+    .doc {
+      text-align: center;
+      font-size: 0.8125rem;
+      line-height: 1.5;
+      color: rgba(230, 230, 234, 0.55);
+      max-width: 36rem;
+    }
+
+    .doc strong {
+      color: rgba(230, 230, 234, 0.85);
+      font-weight: 600;
+    }
+
+    .doc code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.9em;
+      padding: 0.1em 0.35em;
+      border-radius: 4px;
+      background: rgba(255, 255, 255, 0.08);
+    }
+
+    /* Phone frame: logical CSS size (iframe sees this as viewport when parent doesn’t override). */
+    .frame {
+      position: relative;
+      width: 375px;
+      height: 667px;
+      flex-shrink: 0;
+      border-radius: 36px;
+      border: 3px solid #2e2e32;
+      overflow: hidden;
+      background: #0a0a0b;
+      box-shadow:
+        0 0 0 1px rgba(255, 255, 255, 0.06) inset,
+        0 24px 64px rgba(0, 0, 0, 0.55),
+        0 8px 24px rgba(0, 0, 0, 0.35);
+    }
+
+    .frame.size-sm {
+      width: 320px;
+      height: 568px;
+      border-radius: 32px;
+    }
+
+    /* Subtle notch cue */
+    .frame::before {
+      content: "";
+      position: absolute;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 96px;
+      height: 26px;
+      background: #0a0a0b;
+      border-radius: 16px;
+      z-index: 2;
+      pointer-events: none;
+      box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.06) inset;
+    }
+
+    .frame iframe {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      border: none;
+      display: block;
+      z-index: 1;
+    }
+  </style>
+</head>
+<body>
+  <div class="chrome">
+    <div class="toolbar">
+      <button type="button" id="btnReload" title="Refresh embedded app only">Reload app</button>
+      <button type="button" id="btnSize" title="Toggle preset frame size">Toggle size</button>
+      <button type="button" id="btnRotate" title="Swap width and height">Rotate</button>
+    </div>
+    <p class="doc" id="sizeDoc">
+      Frame: <strong id="sizeLabel">375 × 667 px</strong> (portrait, iPhone SE–class).<br />
+      Toggle: <strong>320 × 568</strong> (smaller phone). Use <code>http://localhost</code> — not <code>file://</code> — so the iframe loads reliably.
+    </p>
+    <div class="frame" id="frame" aria-label="Mobile device frame">
+      <iframe
+        id="appFrame"
+        src="index.html"
+        title="spec — embedded at mobile width">
+      </iframe>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      var PRESETS = {
+        lg: { w: 375, h: 667, name: '375 × 667', note: 'iPhone SE–class portrait' },
+        sm: { w: 320, h: 568, name: '320 × 568', note: 'smaller phone portrait' },
+      };
+
+      var frame = document.getElementById('frame');
+      var iframe = document.getElementById('appFrame');
+      var sizeLabel = document.getElementById('sizeLabel');
+      var sizeDoc = document.getElementById('sizeDoc');
+
+      var presetKey = 'lg';
+      var landscape = false;
+
+      function currentDims() {
+        var p = PRESETS[presetKey];
+        if (!landscape) return { w: p.w, h: p.h };
+        return { w: p.h, h: p.w };
+      }
+
+      function applyFrame() {
+        var d = currentDims();
+        var p = PRESETS[presetKey];
+        frame.style.width = d.w + 'px';
+        frame.style.height = d.h + 'px';
+        frame.classList.toggle('size-sm', presetKey === 'sm');
+
+        var orient = landscape ? 'landscape' : 'portrait';
+        var other = presetKey === 'lg' ? PRESETS.sm : PRESETS.lg;
+        sizeLabel.textContent = d.w + ' × ' + d.h + ' px';
+        sizeDoc.innerHTML =
+          'Frame: <strong>' +
+          d.w +
+          ' × ' +
+          d.h +
+          ' px</strong> (' +
+          orient +
+          ', preset <strong>' +
+          p.name +
+          '</strong> — ' +
+          p.note +
+          ').<br />' +
+          'Other preset: <strong>' +
+          other.name +
+          '</strong>. Same-origin <code>index.html</code> in iframe. Serve over <code>http://localhost</code>.';
+      }
+
+      document.getElementById('btnReload').addEventListener('click', function () {
+        var entry = iframe.getAttribute('src') || 'index.html';
+        iframe.src = entry;
+      });
+
+      document.getElementById('btnSize').addEventListener('click', function () {
+        presetKey = presetKey === 'lg' ? 'sm' : 'lg';
+        applyFrame();
+      });
+
+      document.getElementById('btnRotate').addEventListener('click', function () {
+        landscape = !landscape;
+        applyFrame();
+      });
+
+      applyFrame();
+    })();
+  </script>
+</body>
+</html>
