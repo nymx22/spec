@@ -9,8 +9,24 @@ const SEDIMENT_CHARS = "speck";
 
 let sediment = null;
 
+function specSiteFontUrlSpeck(file) {
+  if (typeof document === 'undefined') return '../fonts/' + file;
+  const scripts = document.getElementsByTagName('script');
+  for (let i = scripts.length - 1; i >= 0; i--) {
+    const src = scripts[i].src;
+    if (src && /\/speckSketch\.js(\?|#|$)/.test(src)) {
+      try {
+        return new URL(`../../../fonts/${file}`, src).href;
+      } catch (e) {
+        break;
+      }
+    }
+  }
+  return '../fonts/' + file;
+}
+
 function preload() {
-  uiFont = loadFont('../fonts/genwan_latin_092725_1-R.otf');
+  uiFont = loadFont(specSiteFontUrlSpeck('genwan_latin_092725_1-R.otf'));
 }
 
 function setup() {

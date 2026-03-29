@@ -504,9 +504,16 @@
       if (e.key === 'Escape' && mq.matches) closeSidebar();
     });
 
-    mq.addEventListener('change', function (e) {
-      if (!e.matches) setOpen(false);
-    });
+    function onViewportMqChange() {
+      if (!mq.matches) setOpen(false);
+    }
+    if (typeof mq.addEventListener === 'function') {
+      mq.addEventListener('change', function (e) {
+        if (!e.matches) setOpen(false);
+      });
+    } else if (typeof mq.addListener === 'function') {
+      mq.addListener(onViewportMqChange);
+    }
 
     window.addEventListener('hashchange', function () {
       syncFromHash({ closeMobile: mq.matches });
