@@ -9,6 +9,13 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.20.0/matter.min.js"></script>
   <script src="../js/inkBlob.js"></script>
   <style>
+    :root {
+      --bg:     #e6e6e6;
+      --ink:    #141414;
+      --border: rgba(0, 0, 0, 0.14);
+      --muted:  rgba(0, 0, 0, 0.42);
+    }
+
     html, body {
       height: 100%;
       margin: 0;
@@ -16,7 +23,9 @@
     }
 
     body {
-      background: #fff;
+      background: var(--bg);
+      font-family: "Space Grotesk", sans-serif;
+      color: var(--ink);
     }
 
     .demo-root {
@@ -25,7 +34,7 @@
       min-height: 0;
       display: flex;
       flex-direction: column;
-      background: #fff;
+      background: var(--bg);
     }
 
     .frame-stage {
@@ -121,20 +130,35 @@
       gap: 10px;
       padding: 12px 16px;
       padding-bottom: max(12px, env(safe-area-inset-bottom, 0px));
-      border-top: 1px solid #eee;
+      border-top: 0.5px solid var(--border);
       user-select: none;
+      font-size: 0.88rem;
+      font-weight: 500;
+      letter-spacing: 0.06em;
+      color: var(--muted);
     }
 
-    .counter {
-      font: 14px/1.1 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-      color: #333;
-      min-width: 60px;
-      text-align: center;
+    .slide-title {
+      color: var(--ink);
+      font-weight: 500;
+    }
+
+    .slide-idx {
+      opacity: 0.75;
+    }
+
+    /* Hub iframe / phone: use full width so the 4:5 canvas fits `main` (was 50% → tiny Venn). */
+    @media (max-width: 768px) {
+      .frame-stage {
+        width: 100%;
+        max-width: 100%;
+        align-self: stretch;
+      }
     }
 
     @media (max-width: 520px) {
       .demo-toolbar { padding: 10px 12px; }
-      .counter { font-size: 13px; min-width: 52px; }
+      .demo-toolbar { font-size: 0.82rem; }
     }
   </style>
 </head>
@@ -153,7 +177,8 @@
       </div>
     </div>
     <div class="demo-toolbar">
-      <div id="counter" class="counter">1 / 5</div>
+      <span id="slideTitle" class="slide-title">Venn frame</span>
+      <span id="counter" class="slide-idx">1 / 5</span>
     </div>
   </div>
   <script>
@@ -162,10 +187,19 @@
 
     const TOTAL_FRAMES = 5;
     const counterEl = document.getElementById('counter');
+    const titleEl = document.getElementById('slideTitle');
+    const FRAME_TITLES = [
+      'Venn frame 1',
+      'Venn frame 2',
+      'Venn frame 3',
+      'Venn frame 4',
+      'Venn frame 5',
+    ];
 
     function updateUI() {
       const f = window.__SPEC_GALLERY_FRAME__ || 1;
       counterEl.textContent = `${f} / ${TOTAL_FRAMES}`;
+      if (titleEl) titleEl.textContent = FRAME_TITLES[f - 1] || 'Venn frame';
     }
 
     function gotoFrame(delta) {

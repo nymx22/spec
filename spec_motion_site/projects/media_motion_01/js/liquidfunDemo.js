@@ -1,6 +1,6 @@
 /**
  * post1.2 · 2 (world only): LiquidFun via SpecSpeckLiquid (no Matter, no sketch.js).
- * Canvas 4:5; mobile fixed ref size, desktop fits main (see canvasFit4x5.js).
+ * Canvas 4:5; mobile + desktop fit `main` via canvasFit4x5.js.
  */
 function setup() {
   var dim = window.specCanvas4x5 ? specCanvas4x5.compute() : { w: 480, h: 600 };

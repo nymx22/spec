@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>3 — Venn + LiquidFun (speck)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:    #e6e6e6;
+      --ink:   #141414;
+      --muted: rgba(0,0,0,0.42);
+    }
+    html { font-size: 18px; }
+
+    html, body {
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+    }
+
+    body {
+      background: var(--bg);
+      font-family: "Space Grotesk", sans-serif;
+      font-size: 1rem;
+      font-weight: 400;
+      color: var(--ink);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .demo-root {
+      height: 100%;
+      max-height: 100%;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      background: var(--bg);
+    }
+
+    .demo-header {
+      flex: 0 0 auto;
+      padding: 12px 14px 10px;
+      border-bottom: 0.5px solid rgba(0,0,0,0.1);
+      text-align: center;
+    }
+
+    .demo-header h1 {
+      font-size: 0.95rem;
+      font-weight: 500;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin: 0 0 0.35rem;
+    }
+
+    .demo-header p {
+      margin: 0 auto;
+      max-width: 36rem;
+      font-size: 0.9rem;
+      line-height: 1.45;
+      color: var(--muted);
+    }
+
+    .demo-header code { font-family: ui-monospace, monospace; font-size: 0.88em; }
+
+    .demo-main {
+      flex: 1 1 0;
+      min-height: 0;
+      min-width: 0;
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    .demo-main canvas {
+      display: block;
+      width: 100% !important;
+      height: 100% !important;
+      object-fit: contain;
+      object-position: center;
+    }
+
+    main { display: block; }
+
+    @media (max-width: 520px) {
+      html { font-size: 15px; }
+      .demo-header { padding: 10px 12px 8px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="demo-root">
+    <header class="demo-header">
+      <h1>3 — Venn + step-2 fluid</h1>
+      <p>Same three-circle layout as frame <strong>1</strong>; the <strong>speck</strong> circle hosts the step-2 <code>initDemoWorld</code> bucket (LiquidFun), clipped to that circle.</p>
+    </header>
+    <main class="demo-main"></main>
+  </div>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.8.0/p5.js"></script>
+  <script src="../js/canvasFit4x5.js"></script>
+  <script src="../js/lib/liquidfun.js"></script>
+  <script src="../js/speckLiquidFun.js"></script>
+  <script src="../js/vennLiquidFunComposite.js"></script>
+</body>
+</html>

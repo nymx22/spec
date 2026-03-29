@@ -4,10 +4,25 @@
 
 ### Added
 
+- **Shared iframe gallery shell** (`spec_motion_site/projects/media_motion_01/css/galleryShell.css`, `js/galleryShell.js`): prev/next arrows, keyboard, title + `n / total`, hash per slide (`initSpecGallery`). **LiquidFun gallery** (`liquidfun-phases/liquidfun-gallery.html`) uses it instead of inline CSS/JS.
+- **post1.2 hub item 3** (`post1-2-gallery-3.html`): single-view Speck break (Venn) in the shared shell (legacy Venn+fluid second view removed); hub item 3 canonical deep link is `#speck-break-venn`.
 - **`spec_motion_site/`**: spec + motion **site** — **`index.html`** (home / project list), **`fonts/`** (shared type for sketches), **`docs/`** (e.g. `MOTION_POST_1_2.md`), **`mobile-view-index.html`** (optional dev frame around the home page — not a QA test suite), **`post1-2.html`** redirect shim, **`projects/media_motion_01/`** (that project’s **`html/`**, **`js/`**, **`video/`**). **`cargo_project/`** at repo root stays separate (Cargo snippets + GlitchGenerator).
+- **post1.2 hub page 3** (`venn-liquidfun-composite.html`, `vennLiquidFunComposite.js`): three-circle Venn layout with **step-2** `initDemoWorld` fluid **clipped** to the speck (top) circle; **`speckLiquidFun.js`** **`initDemoWorld`** accepts optional **`bucketCx`**, **`bucketCy`**, **`bucketRadius`** for placement.
+- **post1.2 hub item 0** (`motion-post-1-2-doc.html`): sidebar entry **`MOTION_POST_1_2.md`** embeds the doc with **edit + rendered preview**; **Download** / **Save to file…** (File System Access where supported). Default hub tab remains **1** (Matter gallery).
+
+### Fixed
+
+- **LiquidFun gallery view 1** (`liquidfun-phases/phase-3-speckliquid-world-only.html`): restored the page content after it became empty, so item 2’s first slide (`#liquidfun-world`) renders again.
+- **LiquidFun gallery** (`liquidfun-phases/liquidfun-gallery.html`): shared shell **`href`s** use **`../../css/`** and **`../../js/`** (one level deeper than `post1-2-gallery-3.html`); **`../css/`** pointed at a non-existent `html/css/` path, so layout and **`initSpecGallery`** did not load in the hub iframe.
+- **post1.2 item 3 / `#post12-3`** (`liquidfun-phases/phase-4-speck-word.html`): hide the inner page-level arrows + `2 / 2` badge so only the outer gallery shell controls/counter are visible.
+- **post1.2 hash cleanup** (`post1-2.html`): removed leftover `#venn-fluid-composite` item-3 handling after item 3 became single-view; canonical item-3 deep hash is `#speck-break-venn`.
 
 ### Changed
 
+- **post1.2 gallery item 1** (`post2-gallery.html`): aligned toolbar typography/chrome to the shared gallery standard (Space Grotesk, muted toolbar treatment, title + index in footer).
+- **post1.2 page 3** (`phase-4-speck-word.html#post12-3`): LiquidFun **speck-word** mode — **speck** sits at the same **exclusive-label** position as **Venn gallery frame 1** (both mini-gallery views); black glyph/particles; circle geometry aligned to frame 1; timed break/reset as configured; **view 2** adds **Box2D edge walls** along the lower two circles so particles collide with those boundaries (walls removed in view 1).
+- **post1.2 Venn on mobile**: `post2-gallery.html` uses full-width stage below 768px (was 50% → cramped canvas). **`canvasFit4x5.js`** fits LiquidFun canvases to `main` on mobile instead of fixed 480×600 so hub iframe + header layout matches the sketch.
+- **post1.2 hub hashes**: **`#3`** now opens **`#speck-break`** (aliases include **`composite`**, **`fluid`**, **`vennfluid`**, **`speckbreak`**); **glyph-break** slide is **`#4`**; **speck-word** slide is **`#5`** (LiquidFun deep links unchanged for item 2).
 - **Mobile preview** (`spec_motion_site/mobile-view-index.html`): lives next to **`index.html`** (no longer under **`tests/`**); iframe **`src`** is **`index.html`**. Empty **`spec_motion_site/tests/`** directory removed.
 - **Repo root `index.html`**: redirects to **`spec_motion_site/index.html`** (was `media_motion_01/index.html`).
 - **`spec_motion_site/post1-2.html`**: redirect target is **`projects/media_motion_01/html/post1-2.html`** (preserves `hash` / `search`).

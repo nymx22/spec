@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>MOTION_POST_1_2.md</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/marked@11.1.1/marked.min.js"></script>
+  <style>
+    :root {
+      --bg: #e4e4e4;
+      --ink: #141414;
+      --border: rgba(0,0,0,0.12);
+      --muted: rgba(0,0,0,0.5);
+      --panel: #f0f0f0;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { font-size: 16px; }
+    html, body {
+      height: 100%;
+      height: 100dvh;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: "Space Grotesk", sans-serif;
+      -webkit-font-smoothing: antialiased;
+      overflow: hidden;
+    }
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.5rem 0.75rem;
+      padding: 0.55rem 1rem;
+      padding-top: max(0.55rem, env(safe-area-inset-top, 0px));
+      border-bottom: 0.5px solid var(--border);
+      flex-shrink: 0;
+      background: var(--bg);
+    }
+    .toolbar-title {
+      font-size: 0.85rem;
+      font-weight: 500;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-right: 0.25rem;
+    }
+    .toolbar button {
+      font: inherit;
+      font-size: 0.9rem;
+      font-weight: 500;
+      padding: 0.35rem 0.75rem;
+      border-radius: 8px;
+      border: 0.5px solid var(--border);
+      background: rgba(255,255,255,0.65);
+      color: var(--ink);
+      cursor: pointer;
+      transition: background 0.12s;
+    }
+    .toolbar button:hover {
+      background: rgba(255,255,255,0.95);
+    }
+    .toolbar .spacer { flex: 1; min-width: 0.5rem; }
+    #status {
+      font-size: 0.85rem;
+      color: var(--muted);
+      max-width: 100%;
+    }
+    #status.err { color: #8a1c1c; }
+    .layout {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: 1fr;
+      min-height: 0;
+      flex: 1;
+      height: calc(100% - 52px);
+      height: calc(100dvh - 52px);
+    }
+    @media (max-width: 768px) {
+      .layout {
+        grid-template-columns: 1fr;
+        grid-template-rows: 1fr 1fr;
+      }
+    }
+    .pane {
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      border-right: 0.5px solid var(--border);
+    }
+    @media (max-width: 768px) {
+      .pane { border-right: none; border-bottom: 0.5px solid var(--border); }
+      .pane:last-child { border-bottom: none; }
+    }
+    .pane:last-child { border-right: none; }
+    .pane-label {
+      font-size: 0.75rem;
+      font-weight: 500;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+      padding: 0.35rem 1rem;
+      background: rgba(0,0,0,0.03);
+      border-bottom: 0.5px solid var(--border);
+      flex-shrink: 0;
+    }
+    #editor {
+      flex: 1;
+      width: 100%;
+      min-height: 0;
+      resize: none;
+      border: none;
+      padding: 1rem 1.1rem;
+      font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      font-size: 0.82rem;
+      line-height: 1.5;
+      background: var(--panel);
+      color: var(--ink);
+    }
+    #editor:focus {
+      outline: none;
+      box-shadow: inset 0 0 0 1px rgba(0,0,0,0.08);
+    }
+    #preview {
+      flex: 1;
+      min-height: 0;
+      overflow: auto;
+      padding: 1rem 1.25rem 1.5rem;
+      font-size: 0.95rem;
+      line-height: 1.55;
+      -webkit-overflow-scrolling: touch;
+    }
+    #preview h1 { font-size: 1.35rem; margin: 0.6rem 0 0.5rem; font-weight: 500; }
+    #preview h2 { font-size: 1.1rem; margin: 1rem 0 0.45rem; font-weight: 500; }
+    #preview h3 { font-size: 1rem; margin: 0.85rem 0 0.35rem; font-weight: 500; }
+    #preview p { margin: 0.45rem 0; }
+    #preview ul, #preview ol { margin: 0.45rem 0; padding-left: 1.35rem; }
+    #preview li { margin: 0.2rem 0; }
+    #preview code {
+      font-family: ui-monospace, Menlo, monospace;
+      font-size: 0.88em;
+      background: rgba(0,0,0,0.06);
+      padding: 0.12em 0.35em;
+      border-radius: 4px;
+    }
+    #preview pre {
+      margin: 0.65rem 0;
+      padding: 0.75rem 1rem;
+      background: rgba(0,0,0,0.06);
+      border-radius: 8px;
+      overflow: auto;
+      font-size: 0.82rem;
+    }
+    #preview pre code { background: none; padding: 0; }
+    #preview table {
+      border-collapse: collapse;
+      margin: 0.65rem 0;
+      font-size: 0.88rem;
+    }
+    #preview th, #preview td {
+      border: 0.5px solid var(--border);
+      padding: 0.35rem 0.6rem;
+      text-align: left;
+    }
+    #preview th { background: rgba(0,0,0,0.04); }
+    #preview a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+    #preview strong { font-weight: 500; }
+    .shell {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      height: 100dvh;
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <div class="toolbar">
+      <span class="toolbar-title">MOTION_POST_1_2.md</span>
+      <button type="button" id="btnDownload">Download</button>
+      <button type="button" id="btnSave">Save to file…</button>
+      <span class="spacer"></span>
+      <span id="status"></span>
+    </div>
+    <div class="layout">
+      <div class="pane">
+        <div class="pane-label">Edit</div>
+        <textarea id="editor" spellcheck="false" aria-label="Markdown source"></textarea>
+      </div>
+      <div class="pane">
+        <div class="pane-label">Preview</div>
+        <div id="preview" class="preview-md"></div>
+      </div>
+    </div>
+  </div>
+  <script>
+    (function () {
+      var MD_URL = '../../../docs/MOTION_POST_1_2.md';
+      var SUGGEST_NAME = 'MOTION_POST_1_2.md';
+      var editor = document.getElementById('editor');
+      var preview = document.getElementById('preview');
+      var statusEl = document.getElementById('status');
+      var btnDownload = document.getElementById('btnDownload');
+      var btnSave = document.getElementById('btnSave');
+
+      function setStatus(msg, isErr) {
+        statusEl.textContent = msg || '';
+        statusEl.classList.toggle('err', !!isErr);
+      }
+
+      function render() {
+        try {
+          preview.innerHTML = marked.parse(editor.value, { breaks: true });
+        } catch (e) {
+          preview.innerHTML = '<p><strong>Preview error</strong></p>';
+          setStatus(String(e.message || e), true);
+        }
+      }
+
+      var t;
+      function scheduleRender() {
+        clearTimeout(t);
+        t = setTimeout(render, 120);
+      }
+
+      editor.addEventListener('input', scheduleRender);
+
+      function downloadBlob() {
+        var blob = new Blob([editor.value], { type: 'text/markdown;charset=utf-8' });
+        var a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = SUGGEST_NAME;
+        a.rel = 'noopener';
+        document.body.appendChild(a);
+        a.click();
+        URL.revokeObjectURL(a.href);
+        a.remove();
+        setStatus('Download started.');
+      }
+
+      btnDownload.addEventListener('click', downloadBlob);
+
+      if (typeof window.showSaveFilePicker === 'function') {
+        btnSave.addEventListener('click', function () {
+          window.showSaveFilePicker({
+            suggestedName: SUGGEST_NAME,
+            types: [{ description: 'Markdown', accept: { 'text/markdown': ['.md'] } }],
+          }).then(function (handle) {
+            return handle.createWritable();
+          }).then(function (writable) {
+            writable.write(editor.value);
+            return writable.close();
+          }).then(function () {
+            setStatus('Saved.');
+          }).catch(function (e) {
+            if (e && e.name === 'AbortError') return;
+            setStatus(e && e.message ? e.message : 'Save failed', true);
+          });
+        });
+      } else {
+        btnSave.style.display = 'none';
+      }
+
+      fetch(MD_URL)
+        .then(function (r) {
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          return r.text();
+        })
+        .then(function (text) {
+          editor.value = text;
+          render();
+          setStatus('Loaded from repo path. Edits stay in the browser until you download or save.');
+        })
+        .catch(function (e) {
+          editor.value = '# Could not load ' + MD_URL + '\n\n' +
+            'Open this page over **http://localhost** (or any local server) so `fetch` can read the file.\n\n' +
+            '_Error: ' + String(e.message || e) + '_\n';
+          render();
+          setStatus('Load failed — use a local server.', true);
+        });
+    })();
+  </script>
+</body>
+</html>

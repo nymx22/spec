@@ -169,7 +169,8 @@
   /**
    * post1.2 · 2 / isolated demo: one circular bucket + viscous water blob (Matter-style +Y down).
    * No Matter.js. Coordinates match p5 canvas pixels (x right, y down).
-   * @param {{ width:number, height:number, gravityY?: number }} o
+   * @param {{ width:number, height:number, gravityY?: number, bucketCx?: number, bucketCy?: number, bucketRadius?: number }} o
+   * Optional **bucketCx** / **bucketCy** / **bucketRadius** place the circular bucket off-center (e.g. under the speck Venn circle).
    * Tuned for snappy motion at pixel scale: strong gravity, low drag, slippery walls, extra Step iters + sim speed.
    */
   function initDemoWorld(o) {
@@ -205,9 +206,9 @@
 
     const w = o.width;
     const h = o.height;
-    const cx = w / 2;
-    const cy = h / 2;
-    const wallR = Math.min(w, h) * 0.38;
+    const cx = o.bucketCx != null ? o.bucketCx : w / 2;
+    const cy = o.bucketCy != null ? o.bucketCy : h / 2;
+    const wallR = o.bucketRadius != null ? o.bucketRadius : Math.min(w, h) * 0.38;
     withLfWorld(lfWorld, () => addCircleWallLF(lfWorld, cx, cy, wallR, 0.35, 0.20));
 
     const mx = cx;

@@ -166,6 +166,22 @@
       line-height: 1.5;
     }
 
+    .nav-item--file .nav-item-top {
+      margin-bottom: 0.1rem;
+    }
+
+    .nav-filename {
+      font-size: 0.92rem;
+      font-family: ui-monospace, "SF Mono", Menlo, monospace;
+      color: var(--ink);
+      line-height: 1.45;
+      word-break: break-all;
+    }
+
+    .nav-item--file:not(.active) .nav-filename {
+      color: var(--muted);
+    }
+
     .preview {
       flex: 1;
       display: flex;
@@ -321,33 +337,57 @@
         <span class="back-link-arrow">←</span> media_motion_01
       </a>
       <div class="sidebar-title">post1.2</div>
-      <div class="nav-count">1 · 2</div>
+      <div class="nav-count">0 · 1 · 2 · 3</div>
     </div>
 
     <nav class="nav-list">
 
+      <a class="nav-item nav-item--file"
+         href="#motion-post-1-2-doc"
+         data-src="motion-post-1-2-doc.html"
+         data-name="MOTION_POST_1_2.md"
+         data-slug="motion-post-1-2-doc">
+        <div class="nav-item-top">
+          <span class="nav-num">0</span>
+        </div>
+        <span class="nav-filename">MOTION_POST_1_2.md</span>
+      </a>
+
       <a class="nav-item active"
          href="#gallery"
          data-src="post2-gallery.html"
-         data-name="1 — p5.js matter.js"
-         data-slug="gallery">
+         data-name="1. venn diagram live motion"
+         data-slug="gallery"
+         data-default="true">
         <div class="nav-item-top">
-          <span class="nav-num">1</span>
+          <span class="nav-num">1. venn diagram live motion</span>
           <span class="nav-status status-live">live</span>
         </div>
-        <span class="nav-desc">Venn frames — Matter.js speck, ink, transitions</span>
+        <span class="nav-desc">motion frames design</span>
       </a>
 
       <a class="nav-item"
          href="#liquidfun"
          data-src="liquidfun-phases/liquidfun-gallery.html"
-         data-name="2 — LiquidFun"
+         data-name="2. speck design ideas"
          data-slug="liquidfun">
         <div class="nav-item-top">
-          <span class="nav-num">2</span>
+          <span class="nav-num">2. speck design ideas</span>
           <span class="nav-status status-dev">dev</span>
         </div>
         <span class="nav-desc">LiquidFun gallery — world, glyph break, speck word (arrows; shareable # per demo)</span>
+      </a>
+
+      <a class="nav-item"
+         href="#speck-break"
+         data-src="post1-2-gallery-3.html"
+         data-name="3. speck break"
+         data-slug="speck-break">
+        <div class="nav-item-top">
+          <span class="nav-num">3. speck break</span>
+          <span class="nav-status status-dev">dev</span>
+        </div>
+        <span class="nav-desc">Speck break (Venn) — single view in the shared gallery shell</span>
       </a>
 
     </nav>
@@ -390,16 +430,26 @@
 
     var mq = window.matchMedia('(max-width: 768px)');
 
-    /** Short links: post1-2.html#1 #2 plus aliases. Deep links to LiquidFun slides: #liquidfun-world, #glyph-break, #speck-word (still work; load gallery iframe with that hash). */
+    /** Short links: #0 #doc #md (this doc), #1 #2 #3, aliases. LiquidFun deep: #liquidfun-world, #glyph-break, #speck-word (item 2 iframe). Item 3 deep: #speck-break-venn. */
     var LIQUIDFUN_SLUG = 'liquidfun';
+    var SPECK_BREAK_SLUG = 'speck-break';
     var SLUG_ALIASES = {
+      '0': 'motion-post-1-2-doc',
+      doc: 'motion-post-1-2-doc',
+      md: 'motion-post-1-2-doc',
+      motion_post_1_2: 'motion-post-1-2-doc',
       '1': 'gallery',
       p5: 'gallery',
       matter: 'gallery',
       '2': 'liquidfun',
       liquidfun: 'liquidfun',
-      '3': 'glyph-break',
-      '4': 'speck-word',
+      '3': 'speck-break',
+      '4': 'glyph-break',
+      '5': 'speck-word',
+      composite: 'speck-break',
+      fluid: 'speck-break',
+      vennfluid: 'speck-break',
+      speckbreak: 'speck-break',
       world: 'liquidfun-world',
       liquid: 'liquidfun-world',
       glyph: 'glyph-break',
@@ -409,6 +459,10 @@
 
     function isLiquidfunSubslug(s) {
       return s === 'liquidfun-world' || s === 'glyph-break' || s === 'speck-word';
+    }
+
+    function isSpeckBreakSubslug(s) {
+      return s === 'speck-break-venn';
     }
 
     function canonicalSlug(raw) {
@@ -425,6 +479,11 @@
           if (items[j].getAttribute('data-slug') === LIQUIDFUN_SLUG) return items[j];
         }
       }
+      if (slug === SPECK_BREAK_SLUG || isSpeckBreakSubslug(slug)) {
+        for (var k = 0; k < items.length; k++) {
+          if (items[k].getAttribute('data-slug') === SPECK_BREAK_SLUG) return items[k];
+        }
+      }
       for (var i = 0; i < items.length; i++) {
         if (items[i].getAttribute('data-slug') === slug) return items[i];
       }
@@ -432,7 +491,8 @@
     }
 
     function defaultItem() {
-      return items[0];
+      var d = document.querySelector('.nav-item[data-default]');
+      return d || items[0];
     }
 
     function applyItem(item, options) {
@@ -449,6 +509,13 @@
         else if (c === LIQUIDFUN_SLUG) sub = 'liquidfun-world';
         var base = src.split('#')[0];
         src = base + '#' + sub;
+      }
+      if (item.getAttribute('data-slug') === SPECK_BREAK_SLUG) {
+        var sub3 = 'speck-break-venn';
+        if (isSpeckBreakSubslug(c)) sub3 = c;
+        else if (c === SPECK_BREAK_SLUG) sub3 = 'speck-break-venn';
+        var base3 = src.split('#')[0];
+        src = base3 + '#' + sub3;
       }
       frame.src = src;
       nameEl.textContent = item.getAttribute('data-name');

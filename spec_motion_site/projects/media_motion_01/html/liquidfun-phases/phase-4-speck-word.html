@@ -69,6 +69,7 @@
       align-items: center;
       justify-content: center;
       overflow: hidden;
+      position: relative;
     }
 
     .demo-main canvas {
@@ -77,6 +78,57 @@
       height: 100% !important;
       object-fit: contain;
       object-position: center;
+    }
+
+    .page3-controls {
+      position: absolute;
+      inset: auto 10px 10px 10px;
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      pointer-events: none;
+      z-index: 5;
+    }
+
+    .page3-controls.active {
+      display: flex;
+    }
+
+    .page3-arrow {
+      pointer-events: auto;
+      width: 40px;
+      height: 40px;
+      border: none;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.72);
+      color: rgba(20,20,20,0.65);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+
+    .page3-arrow:hover {
+      background: rgba(255,255,255,0.92);
+      color: #141414;
+    }
+
+    .page3-arrow svg {
+      width: 20px;
+      height: 20px;
+      display: block;
+    }
+
+    .page3-counter {
+      pointer-events: none;
+      font-size: 0.82rem;
+      color: rgba(0,0,0,0.56);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      background: rgba(255,255,255,0.68);
+      border-radius: 999px;
+      padding: 6px 10px;
     }
 
     .demo-meta {
@@ -157,19 +209,60 @@
       <span id="particleInfo" class="demo-meta"></span>
     </div>
     <main class="demo-main"></main>
+    <div id="page3Controls" class="page3-controls" aria-label="page 3 views">
+      <button id="page3Prev" class="page3-arrow" type="button" aria-label="Previous view">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+      </button>
+      <span id="page3Counter" class="page3-counter">2 / 2</span>
+      <button id="page3Next" class="page3-arrow" type="button" aria-label="Next view">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg>
+      </button>
+    </div>
   </div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.8.0/p5.js"></script>
   <script src="../../js/canvasFit4x5.js"></script>
   <script src="../../js/lib/liquidfun.js"></script>
   <script>
+    var PAGE3_MODE = (location.hash || '').replace(/^#/, '').trim().toLowerCase() === 'post12-3';
+    var VENN_REF = {
+      layoutRefW: 600,
+      offset: 55,
+      radius: 85,
+      scale: 1.7,
+      labelFracTop: 0.58,
+    };
+    // Matches sketch.js gallery frame 2 spread geometry.
+    var VENN_SPREAD_MULT = 1.35;
+    /** Same as sketch frame 1: VENN_R * 2 * VENN_SCALE */
+    var VENN_SIZE_SCALED = VENN_REF.radius * 2 * VENN_REF.scale;
+    var VENN_LABEL_WORDS = ['speck', 'inspect', 'spectrum'];
+    var VENN_LABEL_FIXED_THETAS = [0, null, null];
+    var LABEL_MIN_FRAC_TOP = 0.48;
+    var LABEL_MAX_FRAC_TOP = 0.68;
+    var LABEL_MIN_FRAC_BOTTOM = 0.48;
+    var LABEL_MAX_FRAC_BOTTOM = 0.68;
+    var LABEL_DIST_STEP = 0.05;
+    var LABEL_MARGIN_PX = 2;
+    var _page3LayoutLs = 1;
+    var _page3LabelLayoutsCache = null;
+    var _page3LabelLayoutsKey = '';
+    var AUTO_BREAK_DELAY_MS = 220;
+    var AUTO_BREAK_MS = 2000;
+    var RESET_AFTER_BOTTOM_HIT_MS = 2000;
+    var autoBreakAtMs = -1;
+    var PAGE3_TOTAL_VIEWS = 2;
+    var page3View = 2; // 1=speck only, 2=venn+isolated speck region
+    /** Box2D body: edge segments along lower circles (view 2 only). */
+    var page3InnerWallBody = null;
+
     // Phase 4 variant: word “speck” (genwanlatin) inside the circle — same break, stagger, mask trim, fade,
     // and glyph overlay as phase-4-break-one-glyph-no-collision (wider raster + higher patch cap).
     var CFG = {
       gravityY: 32,
-      radius: 3.2,
+      radius: PAGE3_MODE ? 1.8 : 3.2,
       /** Fill disk radius per group (world-only single blob uses ~0.07·min); smaller = more patches, smoother S. */
-      groupPatchRadiusFrac: 0.028,
+      groupPatchRadiusFrac: PAGE3_MODE ? 0.003 : 0.028,
       dampingStrength: 0.6,
       viscousStrength: 0.2,
       elasticStrength: 0.01,
@@ -190,7 +283,7 @@
       /** World units subtracted from wall radius when fitting (patch extent + slack). */
       fitWallInset: 6,
       /** Physics steps after spawn so fluid packs slightly, then mask-trim runs (before break). */
-      trimSettleSteps: 5,
+      trimSettleSteps: PAGE3_MODE ? 7 : 5,
       /** DestroyParticlesInShape radius as fraction of particle radius (small = one-at-a-time, keeps groups intact). */
       trimKillRadiusFrac: 0.52,
       /** Draw: particle fill alpha (speed still adds on top within min–max). */
@@ -214,8 +307,8 @@
       /** Optional ms after last particle releases before glyph overlay hits alpha 0 (0 = gone exactly at last release). */
       glyphFadeOutTailMs: 140,
       /** Raster buffer for multi-letter word (genwanlatin). */
-      wordMaskWidth: 400,
-      wordMaskHeight: 170,
+      wordMaskWidth: PAGE3_MODE ? 520 : 400,
+      wordMaskHeight: PAGE3_MODE ? 220 : 170,
       wordTextSize: 76,
       defaultWord: 'speck',
     };
@@ -249,12 +342,18 @@
       fallReleaseAtMs: null,
       /** max(fallReleaseAtMs); glyph overlay fully faded by this + tail. */
       fallLastReleaseMs: -1,
+      /** millis() when the current scene got ready (for page-3 auto cycle). */
+      sceneReadyAtMs: -1,
+      /** page-3: first time a released particle reaches bottom arc. */
+      firstBottomHitMs: -1,
+      /** page-3: fallback if bottom hit never triggers due simulation variance. */
+      breakStartMs: -1,
       /** From #glyphColor — fill tint & particles (synced in wireUI). */
-      glyphRgb: { r: 255, g: 255, b: 255 },
+      glyphRgb: PAGE3_MODE ? { r: 0, g: 0, b: 0 } : { r: 255, g: 255, b: 255 },
     };
 
     /** Max CreateParticleGroup calls (each patch relaxes like world-only disk). */
-    var MAX_PATCH_GROUPS = 520;
+    var MAX_PATCH_GROUPS = PAGE3_MODE ? 900 : 520;
 
     /** Spec title font (same as index / media_motion_01 .brand / .project-title). Loaded via @font-face above. */
     var SPEC_TITLE_FONT = 'genwanlatin';
@@ -287,8 +386,348 @@
     }
 
     function syncGlyphColorFromUI() {
+      if (PAGE3_MODE) {
+        phase4.glyphRgb = { r: 0, g: 0, b: 0 };
+        return;
+      }
       var el = document.getElementById('glyphColor');
       phase4.glyphRgb = hexToRgb(el && el.value ? el.value : '#ffffff');
+    }
+
+    function getVennSpeckCenter() {
+      var ls = width / VENN_REF.layoutRefW;
+      var cy = height / 2;
+      var cx = width / 2;
+      var off = VENN_REF.offset * ls;
+      return { cx: cx, cy: cy - off, ls: ls };
+    }
+
+    function getVennTargets() {
+      var ls = width / VENN_REF.layoutRefW;
+      var cy = height / 2;
+      var cx = width / 2;
+      var off = VENN_REF.offset * ls;
+      if (PAGE3_MODE) off *= VENN_SPREAD_MULT;
+      return [
+        { x: cx, y: cy - off },              // top (speck)
+        { x: cx - off * 0.9, y: cy + off * 0.6 }, // left
+        { x: cx + off * 0.9, y: cy + off * 0.6 }, // right
+      ];
+    }
+
+    function pointInIsolatedSpeckRegion(px, py, targets, r) {
+      // Borders are included:
+      // - inside (or on) top circle
+      // - outside (or on) both lower circles
+      var t = targets[0];
+      var l = targets[1];
+      var rr = targets[2];
+      var r2 = r * r;
+      var dt = (px - t.x) * (px - t.x) + (py - t.y) * (py - t.y);
+      if (dt > r2) return false;
+      var dl = (px - l.x) * (px - l.x) + (py - l.y) * (py - l.y);
+      if (dl < r2) return false;
+      var dr = (px - rr.x) * (px - rr.x) + (py - rr.y) * (py - rr.y);
+      if (dr < r2) return false;
+      return true;
+    }
+
+    function page3ShortestAngleDelta(a1, a2) {
+      var d = a2 - a1;
+      while (d > Math.PI) d -= 2 * Math.PI;
+      while (d < -Math.PI) d += 2 * Math.PI;
+      return d;
+    }
+
+    // Equal-radius circle–circle intersections (two points).
+    function page3CircleCircleIntersectionsEqualR(cx0, cy0, cx1, cy1, r) {
+      var dx = cx1 - cx0;
+      var dy = cy1 - cy0;
+      var d = Math.hypot(dx, dy);
+      if (d < 1e-5 || d > 2 * r + 1e-3) return null;
+      var a = d / 2;
+      var h = Math.sqrt(Math.max(0, r * r - a * a));
+      var mx = cx0 + (dx * a) / d;
+      var my = cy0 + (dy * a) / d;
+      var rx = (-dy / d) * h;
+      var ry = (dx / d) * h;
+      return [
+        { x: mx + rx, y: my + ry },
+        { x: mx - rx, y: my - ry },
+      ];
+    }
+
+    function page3ArcMidGoodLeft(px, py, T, Rr, r) {
+      var dT = Math.hypot(px - T.x, py - T.y);
+      var dR = Math.hypot(px - Rr.x, py - Rr.y);
+      return dT <= r - 0.5 && dR >= r - 0.5;
+    }
+
+    function page3ArcMidGoodRight(px, py, T, L, r) {
+      var dT = Math.hypot(px - T.x, py - T.y);
+      var dL = Math.hypot(px - L.x, py - L.y);
+      return dT <= r - 0.5 && dL >= r - 0.5;
+    }
+
+    function page3PickLowerArc(cx, cy, r, p1, p2, isLeft, T, L, Rr, rr) {
+      var a1 = Math.atan2(p1.y - cy, p1.x - cx);
+      var a2 = Math.atan2(p2.y - cy, p2.x - cx);
+      var dShort = page3ShortestAngleDelta(a1, a2);
+      var midS = a1 + dShort * 0.5;
+      var sx = cx + Math.cos(midS) * r;
+      var sy = cy + Math.sin(midS) * r;
+      var goodS = isLeft
+        ? page3ArcMidGoodLeft(sx, sy, T, Rr, rr)
+        : page3ArcMidGoodRight(sx, sy, T, L, rr);
+      if (goodS) return { ang0: a1, ang1: a1 + dShort };
+      var dLong = dShort > 0 ? dShort - 2 * Math.PI : dShort + 2 * Math.PI;
+      var midL = a1 + dLong * 0.5;
+      var lx = cx + Math.cos(midL) * r;
+      var ly = cy + Math.sin(midL) * r;
+      var goodL = isLeft
+        ? page3ArcMidGoodLeft(lx, ly, T, Rr, rr)
+        : page3ArcMidGoodRight(lx, ly, T, L, rr);
+      if (goodL) return { ang0: a1, ang1: a1 + dLong };
+      return { ang0: a1, ang1: a1 + dShort };
+    }
+
+    function page3AddArcEdgesToBody(body, LF, cx, cy, r, ang0, ang1, segs) {
+      var dAng = page3ShortestAngleDelta(ang0, ang1);
+      var n = Math.max(10, segs | 0);
+      for (var i = 0; i < n; i++) {
+        var t0 = i / n;
+        var t1 = (i + 1) / n;
+        var aa0 = ang0 + dAng * t0;
+        var aa1 = ang0 + dAng * t1;
+        var x0 = cx + Math.cos(aa0) * r;
+        var y0 = cy + Math.sin(aa0) * r;
+        var x1 = cx + Math.cos(aa1) * r;
+        var y1 = cy + Math.sin(aa1) * r;
+        var edge = new LF.b2EdgeShape();
+        edge.Set(new LF.b2Vec2(x0, -y0), new LF.b2Vec2(x1, -y1));
+        var fd = new LF.b2FixtureDef();
+        fd.shape = edge;
+        fd.friction = CFG.wallFriction;
+        fd.restitution = CFG.wallRestitution;
+        fd.density = 0;
+        body.CreateFixtureFromDef(fd);
+      }
+    }
+
+    function page3CreateInnerWallBody() {
+      var LF = window.liquidfun;
+      var targets = getVennTargets();
+      var T = targets[0];
+      var L = targets[1];
+      var Rr = targets[2];
+      var r = phase4.r;
+      var ipTL = page3CircleCircleIntersectionsEqualR(T.x, T.y, L.x, L.y, r);
+      var ipTR = page3CircleCircleIntersectionsEqualR(T.x, T.y, Rr.x, Rr.y, r);
+      if (!ipTL || !ipTR) return null;
+      var arcL = page3PickLowerArc(L.x, L.y, r, ipTL[0], ipTL[1], true, T, L, Rr, r);
+      var arcR = page3PickLowerArc(Rr.x, Rr.y, r, ipTR[0], ipTR[1], false, T, L, Rr, r);
+      var bd = new LF.b2BodyDef();
+      bd.position = new LF.b2Vec2(0, 0);
+      var body = world.CreateBody(bd);
+      page3AddArcEdgesToBody(body, LF, L.x, L.y, r, arcL.ang0, arcL.ang1, 32);
+      page3AddArcEdgesToBody(body, LF, Rr.x, Rr.y, r, arcR.ang0, arcR.ang1, 32);
+      return body;
+    }
+
+    function syncPage3InnerWalls() {
+      if (!PAGE3_MODE || !world) return;
+      if (page3InnerWallBody) {
+        world.DestroyBody(page3InnerWallBody);
+        page3InnerWallBody = null;
+      }
+      if (page3View !== 2) return;
+      page3InnerWallBody = page3CreateInnerWallBody();
+    }
+
+    function page3DistSq(ax, ay, bx, by) {
+      var dx = ax - bx;
+      var dy = ay - by;
+      return dx * dx + dy * dy;
+    }
+
+    function page3PointInsideCircle(px, py, c, r) {
+      var m = LABEL_MARGIN_PX * _page3LayoutLs;
+      return page3DistSq(px, py, c.x, c.y) < (r - m) * (r - m);
+    }
+
+    function page3PointOutsideCircle(px, py, c, r) {
+      var m = LABEL_MARGIN_PX * _page3LayoutLs;
+      return page3DistSq(px, py, c.x, c.y) > (r + m) * (r + m);
+    }
+
+    function page3IsExclusivePoint(px, py, i, centers, r) {
+      if (!page3PointInsideCircle(px, py, centers[i], r)) return false;
+      for (var k = 0; k < centers.length; k++) {
+        if (k === i) continue;
+        if (!page3PointOutsideCircle(px, py, centers[k], r)) return false;
+      }
+      return true;
+    }
+
+    function page3RotatedRectFits(px, py, theta, w, h, i, centers, r) {
+      var hw = w / 2;
+      var hh = h / 2;
+      var c = Math.cos(theta);
+      var s = Math.sin(theta);
+      var pts = [
+        { x: -hw, y: -hh },
+        { x: hw, y: -hh },
+        { x: hw, y: hh },
+        { x: -hw, y: hh },
+        { x: 0, y: -hh },
+        { x: 0, y: hh },
+        { x: -hw, y: 0 },
+        { x: hw, y: 0 },
+      ];
+      for (var pi = 0; pi < pts.length; pi++) {
+        var p = pts[pi];
+        var rx = px + p.x * c - p.y * s;
+        var ry = py + p.x * s + p.y * c;
+        if (!page3IsExclusivePoint(rx, ry, i, centers, r)) return false;
+      }
+      return true;
+    }
+
+    function page3NormalizeAnglePi(a) {
+      var x = a;
+      while (x > Math.PI) x -= Math.PI * 2;
+      while (x < -Math.PI) x += Math.PI * 2;
+      return x;
+    }
+
+    function page3MakeTextUpright(theta) {
+      var t = page3NormalizeAnglePi(theta);
+      if (t > Math.PI / 2) t -= Math.PI;
+      if (t < -Math.PI / 2) t += Math.PI;
+      return t;
+    }
+
+    function page3ComputeExclusiveLabelLayout(centers, r, words, textPx) {
+      textSize(textPx);
+      var h = textAscent() + textDescent();
+      var layouts = [];
+      for (var ii = 0; ii < 3; ii++) {
+        var ci = centers[ii];
+        var dx = 0;
+        var dy = 0;
+        for (var oi = 0; oi < centers.length; oi++) {
+          if (oi === ii) continue;
+          var oc = centers[oi];
+          var vx = ci.x - oc.x;
+          var vy = ci.y - oc.y;
+          var mm = Math.hypot(vx, vy) || 1;
+          dx += vx / mm;
+          dy += vy / mm;
+        }
+        var dm = Math.hypot(dx, dy) || 1;
+        dx /= dm;
+        dy /= dm;
+        var baseTheta = Math.atan2(dy, dx);
+        var w = textWidth(words[ii]);
+        var best = null;
+        var fixed = page3ComputeExclusiveLabelLayout.fixedThetas
+          ? page3ComputeExclusiveLabelLayout.fixedThetas[ii]
+          : null;
+        var thetaCandidates =
+          typeof fixed === 'number'
+            ? [fixed]
+            : [
+                page3MakeTextUpright(baseTheta + Math.PI / 2),
+                page3MakeTextUpright(baseTheta - Math.PI / 2),
+              ];
+        var minFrac = ii === 0 ? LABEL_MIN_FRAC_TOP : LABEL_MIN_FRAC_BOTTOM;
+        var maxFrac = ii === 0 ? LABEL_MAX_FRAC_TOP : LABEL_MAX_FRAC_BOTTOM;
+        for (var frac = maxFrac; frac >= minFrac; frac -= LABEL_DIST_STEP) {
+          var px = ci.x + dx * (frac * r);
+          var py = ci.y + dy * (frac * r);
+          if (!page3IsExclusivePoint(px, py, ii, centers, r)) continue;
+          for (var ti = 0; ti < thetaCandidates.length; ti++) {
+            var th = thetaCandidates[ti];
+            if (page3RotatedRectFits(px, py, th, w, h, ii, centers, r)) {
+              best = { dx: px - ci.x, dy: py - ci.y, theta: th };
+              break;
+            }
+          }
+          if (best) break;
+        }
+        if (!best) {
+          for (var frac2 = maxFrac; frac2 >= minFrac; frac2 -= LABEL_DIST_STEP) {
+            var px2 = ci.x + dx * (frac2 * r);
+            var py2 = ci.y + dy * (frac2 * r);
+            if (page3IsExclusivePoint(px2, py2, ii, centers, r)) {
+              var th2 =
+                typeof fixed === 'number' ? fixed : page3MakeTextUpright(baseTheta + Math.PI / 2);
+              best = { dx: px2 - ci.x, dy: py2 - ci.y, theta: th2 };
+              break;
+            }
+          }
+        }
+        layouts.push(best || { dx: 0, dy: 0, theta: 0 });
+      }
+      return layouts;
+    }
+
+    function page3EnsureSpeckLabelLayouts() {
+      var ls = width / VENN_REF.layoutRefW;
+      var targets = getVennTargets();
+      var vennD = VENN_SIZE_SCALED * ls;
+      var rFinal = vennD / 2;
+      var vennTextPx = 24 * ls;
+      var key =
+        rFinal +
+        '|' +
+        vennTextPx +
+        '|' +
+        targets[0].x +
+        ',' +
+        targets[0].y +
+        '|' +
+        targets[1].x +
+        ',' +
+        targets[1].y +
+        '|' +
+        targets[2].x +
+        ',' +
+        targets[2].y;
+      if (_page3LabelLayoutsKey !== key) {
+        _page3LabelLayoutsKey = key;
+        _page3LayoutLs = ls;
+        applySpecTitleFont();
+        page3ComputeExclusiveLabelLayout.fixedThetas = VENN_LABEL_FIXED_THETAS;
+        _page3LabelLayoutsCache = page3ComputeExclusiveLabelLayout(
+          targets,
+          rFinal,
+          VENN_LABEL_WORDS,
+          vennTextPx
+        );
+      }
+      return { targets: targets, layouts: _page3LabelLayoutsCache };
+    }
+
+    /** World position of “speck” label — same as gallery frame 1 (`VENN_LABEL_WORDS[0]`). */
+    function getPage3SpeckLabelWorldPos() {
+      var o = page3EnsureSpeckLabelLayouts();
+      var t = o.targets[0];
+      var L = o.layouts[0];
+      return { x: t.x + L.dx, y: t.y + L.dy };
+    }
+
+    function setPage3View(v) {
+      var n = ((v - 1 + PAGE3_TOTAL_VIEWS) % PAGE3_TOTAL_VIEWS) + 1;
+      var prev = page3View;
+      page3View = n;
+      var c = document.getElementById('page3Counter');
+      if (c) c.textContent = n + ' / ' + PAGE3_TOTAL_VIEWS;
+      if (PAGE3_MODE && prev !== page3View) syncPage3InnerWalls();
+    }
+
+    function getGlyphAnchorY() {
+      return phase4.cy - phase4.r * 0.34;
     }
 
     function setup() {
@@ -307,6 +746,13 @@
       if (document.fonts && document.fonts.load) {
         document.fonts.load('400 ' + CFG.wordTextSize + 'px ' + SPEC_TITLE_FONT).catch(function () {});
       }
+      if (PAGE3_MODE) {
+        var toolbar = document.querySelector('.demo-toolbar');
+        if (toolbar) toolbar.style.display = 'none';
+        var controls = document.getElementById('page3Controls');
+        if (controls) controls.style.display = 'none';
+        setPage3View(2);
+      }
       if (window.specCanvas4x5 && specCanvas4x5.installMainResizeDispatch) specCanvas4x5.installMainResizeDispatch();
     }
 
@@ -315,6 +761,10 @@
       var dim = specCanvas4x5.compute();
       resizeCanvas(dim.w, dim.h);
       specCanvas4x5.applyPixelDensity(window);
+      if (PAGE3_MODE) {
+        _page3LabelLayoutsKey = '';
+        _page3LabelLayoutsCache = null;
+      }
       resetScene();
     }
 
@@ -335,18 +785,28 @@
 
     function initWorld() {
       var LF = window.liquidfun;
+      page3InnerWallBody = null;
       // Start with no gravity so pre-spawned particles stay under silhouette until "Break Glyph".
       world = new LF.b2World(new LF.b2Vec2(0, 0));
       particleSystem = world.CreateParticleSystem(createParticleSystemDef(LF));
       particleSystem.SetDamping(CFG.setDamping);
       particleSystem.SetRadius(CFG.radius);
 
-      phase4.cx = width / 2;
-      phase4.cy = height / 2;
-      phase4.r = Math.min(width, height) * 0.38;
+      if (PAGE3_MODE) {
+        var speck = getVennSpeckCenter();
+        phase4.cx = speck.cx;
+        phase4.cy = speck.cy;
+        // Match Venn frame-1 speck circle radius exactly: VENN_R * VENN_SCALE * (width / 600).
+        phase4.r = VENN_REF.radius * VENN_REF.scale * speck.ls;
+      } else {
+        phase4.cx = width / 2;
+        phase4.cy = height / 2;
+        phase4.r = Math.min(width, height) * 0.38;
+      }
       addCircleWall(phase4.cx, phase4.cy, phase4.r);
       phase4.groupPatchRadius = Math.min(width, height) * CFG.groupPatchRadiusFrac;
       phase4.wallsReady = true;
+      if (PAGE3_MODE) syncPage3InnerWalls();
     }
 
     function addCircleWall(cx, cy, r) {
@@ -535,8 +995,8 @@
       g.text(ch, g.width / 2, g.height / 2 + 6);
       g.loadPixels();
 
-      var centerX = phase4.cx;
-      var centerY = phase4.cy - phase4.r * 0.34;
+      var centerX = phase4.glyphCenterX;
+      var centerY = phase4.glyphCenterY;
       var step = 1;
       var threshold = 140;
       var bbox = scanGlyphBBox(g, threshold);
@@ -556,6 +1016,13 @@
       var patchR = phase4.groupPatchRadius || Math.min(width, height) * CFG.groupPatchRadiusFrac;
       var innerR = Math.max(phase4.r - patchR - CFG.fitWallInset, phase4.r * 0.25);
       var s = computeFitScale(centerX, centerY, phase4.cx, phase4.cy, innerR, cx_pix, cy_pix, bbox);
+      if (PAGE3_MODE) {
+        // Match Venn frame-1 label scale: VENN_TEXT_SIZE(24) * (width / 600).
+        var vennLs = width / VENN_REF.layoutRefW;
+        var targetTextPx = 24 * vennLs;
+        var targetS = targetTextPx / Math.max(1, CFG.wordTextSize);
+        s = Math.min(s, targetS);
+      }
 
       phase4.glyphMaskGfx = g;
       phase4.glyphDrawS = s;
@@ -609,8 +1076,14 @@
 
     function prepareGlyph(ch) {
       phase4.glyph = ch;
-      phase4.glyphCenterX = phase4.cx;
-      phase4.glyphCenterY = phase4.cy - phase4.r * 0.34;
+      if (PAGE3_MODE) {
+        var p = getPage3SpeckLabelWorldPos();
+        phase4.glyphCenterX = p.x;
+        phase4.glyphCenterY = p.y;
+      } else {
+        phase4.glyphCenterX = phase4.cx;
+        phase4.glyphCenterY = getGlyphAnchorY();
+      }
       phase4.glyphPoints = buildGlyphPoints(ch) || [];
       shuffleArray(phase4.glyphPoints);
       phase4.glyphEmitIndex = phase4.glyphPoints.length;
@@ -620,6 +1093,8 @@
       phase4.fallPinPy = null;
       phase4.fallReleaseAtMs = null;
       phase4.fallLastReleaseMs = -1;
+      phase4.sceneReadyAtMs = millis();
+      phase4.firstBottomHitMs = -1;
       spawnGlyphParticleGroups();
       var ts = CFG.trimSettleSteps | 0;
       for (var st = 0; st < ts; st++) {
@@ -659,6 +1134,7 @@
       if (ch !== phase4.glyph) prepareGlyph(ch);
       phase4.isBreaking = true;
       phase4.breakFadeStartMs = millis();
+      phase4.breakStartMs = phase4.breakFadeStartMs;
       releasePreSpawnedParticles();
       syncBreakButtonState();
     }
@@ -792,7 +1268,9 @@
       var sum0 = 0;
       var cnt = 0;
       for (var k = 0; k < n; k++) {
-        if (now < phase4.fallReleaseAtMs[k]) continue;
+        // page3 draws particles fully opaque, including pinned ones; follow the same full cloud
+        // so the silhouette and particle mass appear to fall at the same speed.
+        if (!PAGE3_MODE && now < phase4.fallReleaseAtMs[k]) continue;
         var sy = -pos[k * 2 + 1];
         var sy0 = -phase4.fallPinPy[k];
         sum += sy;
@@ -829,6 +1307,9 @@
 
     function wireUI() {
       syncGlyphColorFromUI();
+      if (PAGE3_MODE) {
+        return;
+      }
       var colorIn = document.getElementById('glyphColor');
       if (colorIn) {
         colorIn.addEventListener('input', syncGlyphColorFromUI);
@@ -858,6 +1339,35 @@
 
     function draw() {
       background(228);
+
+      if (PAGE3_MODE) {
+        var lsDraw = width / VENN_REF.layoutRefW;
+        var vTargets = getVennTargets();
+        var top = vTargets[0];
+        var left = vTargets[1];
+        var right = vTargets[2];
+        var d = phase4.r * 2;
+        var showAll = page3View === 2;
+
+        noStroke();
+        fill(245, 120);
+        if (showAll) {
+          ellipse(left.x, left.y, d, d);
+          ellipse(right.x, right.y, d, d);
+        }
+        ellipse(top.x, top.y, d, d);
+
+        noFill();
+        stroke(120, 220);
+        strokeWeight(3 * lsDraw);
+        strokeJoin(ROUND);
+        strokeCap(ROUND);
+        if (showAll) {
+          ellipse(left.x, left.y, d, d);
+          ellipse(right.x, right.y, d, d);
+        }
+        ellipse(top.x, top.y, d, d);
+      }
 
       if (!specFontGlyphPrimed && !phase4.isBreaking) {
         if (specFontReady() || frameCount > 180) {
@@ -890,6 +1400,8 @@
         var pos = particleSystem.GetPositionBuffer();
         var vel = particleSystem.GetVelocityBuffer();
         var r = particleSystem.radius;
+        var useIsolatedSpeckClip = PAGE3_MODE && page3View === 2;
+        var cTargets = useIsolatedSpeckClip ? getVennTargets() : null;
 
         noStroke();
         var particleOpacityMul = 1;
@@ -900,6 +1412,7 @@
           var u = (millis() - phase4.breakFadeStartMs) / dur;
           particleOpacityMul = u <= 0 ? 0 : u >= 1 ? 1 : u * u * (3 - 2 * u);
         }
+        var releasedBottomSy = -1e9;
         for (var i = 0; i < pos.length; i += 2) {
           var sx = pos[i];
           var sy = -pos[i + 1];
@@ -915,8 +1428,24 @@
           var j = (i >> 1) % 7;
           var vr = 1 + j * 0.02;
           var gc = phase4.glyphRgb;
+          if (useIsolatedSpeckClip && !pointInIsolatedSpeckRegion(sx, sy, cTargets, phase4.r)) {
+            continue;
+          }
+          if (PAGE3_MODE) alpha = 255;
           fill(gc.r, gc.g, gc.b, alpha);
           circle(sx, sy, r * 2 * vr);
+
+          if (PAGE3_MODE && phase4.isBreaking && phase4.fallReleaseAtMs && millis() >= phase4.fallReleaseAtMs[i >> 1]) {
+            if (sy > releasedBottomSy) releasedBottomSy = sy;
+          }
+        }
+
+        if (PAGE3_MODE && phase4.isBreaking && phase4.firstBottomHitMs < 0 && releasedBottomSy > -1e8) {
+          // Slightly inside the wall to avoid never-hitting due solver jitter/packing.
+          var hitY = phase4.cy + phase4.r * 0.86;
+          if (releasedBottomSy >= hitY) {
+            phase4.firstBottomHitMs = millis();
+          }
         }
 
         // Breaking: glyph color on top of particles — alpha-only fade (no dark outline pass here).
@@ -934,14 +1463,53 @@
           if (glyphRemain > 0) {
             var followDy = computeGlyphFollowDy(millis());
             var faBr = Math.round(255 * glyphRemain);
-            drawGlyphSilhouetteImage(0, faBr, followDy);
+            if (useIsolatedSpeckClip) {
+              drawingContext.save();
+              drawingContext.beginPath();
+              drawingContext.arc(cTargets[0].x, cTargets[0].y, phase4.r * 0.995, 0, Math.PI * 2);
+              drawingContext.clip();
+              drawGlyphSilhouetteImage(0, faBr, followDy);
+              drawingContext.restore();
+            } else {
+              drawGlyphSilhouetteImage(0, faBr, followDy);
+            }
           }
         }
       }
 
       // Pre-break: solid glyph on top of particles.
       if (!phase4.isBreaking && phase4.glyphMaskGfx) {
-        drawGlyphSilhouetteImage(CFG.silhouetteOutlineAlpha, CFG.silhouetteFillAlpha);
+        if (PAGE3_MODE && page3View === 2) {
+          var preTargets = getVennTargets();
+          drawingContext.save();
+          drawingContext.beginPath();
+          drawingContext.arc(preTargets[0].x, preTargets[0].y, phase4.r * 0.995, 0, Math.PI * 2);
+          drawingContext.clip();
+          drawGlyphSilhouetteImage(CFG.silhouetteOutlineAlpha, CFG.silhouetteFillAlpha);
+          drawingContext.restore();
+        } else {
+          drawGlyphSilhouetteImage(CFG.silhouetteOutlineAlpha, CFG.silhouetteFillAlpha);
+        }
+      }
+
+      if (PAGE3_MODE) {
+        if (!phase4.isBreaking && phase4.sceneReadyAtMs > 0 && autoBreakAtMs < 0) {
+          autoBreakAtMs = phase4.sceneReadyAtMs + AUTO_BREAK_DELAY_MS;
+        }
+        if (!phase4.isBreaking && autoBreakAtMs > 0 && millis() >= autoBreakAtMs) {
+          startGlyphDisintegration(getGlyph());
+          autoBreakAtMs = -1;
+        }
+        if (phase4.isBreaking && phase4.firstBottomHitMs > 0) {
+          if (millis() - phase4.firstBottomHitMs >= RESET_AFTER_BOTTOM_HIT_MS) {
+            resetScene();
+          }
+        } else if (phase4.isBreaking && phase4.breakStartMs > 0) {
+          // Fallback safety: never stall if bottom-hit event is missed.
+          if (millis() - phase4.breakStartMs >= 9000) {
+            resetScene();
+          }
+        }
       }
     }
   </script>
