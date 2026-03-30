@@ -404,7 +404,9 @@
     });
 
     window.addEventListener('hashchange', () => {
-      if (LOCK_MODE) return;
+      // Parent shells (e.g. post1-2-gallery-2) often change only the URL fragment on the same
+      // iframe src; the document may not reload, so we must sync from the hash even when inner
+      // navigation is locked (arrows/keys stay disabled via gotoFrame).
       const f = readFrameFromHash();
       if (f !== (window.__SPEC_UI_FRAME__ || 1)) {
         window.__SPEC_UI_FRAME__ = f;

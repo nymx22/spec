@@ -15,6 +15,7 @@
 
 ### Fixed
 
+- **post1.2 gallery item 2** (`post2-gallery.html`): when the outer shell (`post1-2-gallery-2.html` / hub) switches slides by changing only `#venn-frame-4` → `#venn-frame-5` on the same locked iframe URL, the inner gallery now applies **`hashchange`** (it was skipped under `lock=1`), so slide 2 shows **Venn frame 5** instead of repeating frame 4.
 - **post1.2 doc editor** (`motion-post-1-2-doc.html`): the linked `.md` file handle is **persisted in IndexedDB** and restored when the hub iframe reloads (e.g. switching post1.2 sidebar items), so **Cmd+S** / **Ctrl+S** writes to the same file without opening **Save As** again after the first pick; write permission is re-requested when the browser requires it (`prompt` state).
 - **post1.2 gallery item 1 compact mode** (`post2-gallery.html`, `js/sketch.js`): removed remaining outer inset on the still-grid slide so the grid fills the content container; entering `venn-motion` now force-restarts the zoom animation reliably.
 - **post1.2 gallery item 1 compact mode** (`post2-gallery.html`): entering slide 2 now explicitly calls `loop()` when switching from still-grid to `venn-motion`, so motion starts even after prior `noLoop()` states.
