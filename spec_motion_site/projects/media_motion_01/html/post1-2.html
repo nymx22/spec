@@ -134,32 +134,6 @@
       color: var(--muted);
     }
 
-    .nav-status {
-      font-size: 1rem;
-      font-weight: 500;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-      padding: 0.1rem 0.5rem 0.14rem;
-      border-radius: 999px;
-      white-space: nowrap;
-      flex-shrink: 0;
-    }
-
-    .status-live {
-      background: rgba(0,0,0,0.06);
-      color: rgba(0,0,0,0.5);
-    }
-
-    .status-dev {
-      background: rgba(0,0,0,0.08);
-      color: rgba(0,0,0,0.55);
-    }
-
-    .status-wip {
-      background: rgba(0,0,0,0.12);
-      color: rgba(0,0,0,0.72);
-    }
-
     .nav-desc {
       font-size: 1rem;
       color: var(--muted);
@@ -337,7 +311,7 @@
         <span class="back-link-arrow">←</span> media_motion_01
       </a>
       <div class="sidebar-title">post1.2</div>
-      <div class="nav-count">0 · 1 · 2 · 3</div>
+      <div class="nav-count">0 · 1 · 2 · 3 · 4</div>
     </div>
 
     <nav class="nav-list">
@@ -361,33 +335,41 @@
          data-default="true">
         <div class="nav-item-top">
           <span class="nav-num">1. venn diagram live motion</span>
-          <span class="nav-status status-live">live</span>
         </div>
         <span class="nav-desc">motion frames design</span>
       </a>
 
       <a class="nav-item"
-         href="#liquidfun"
-         data-src="liquidfun-phases/liquidfun-gallery.html"
-         data-name="2. speck design ideas"
-         data-slug="liquidfun">
+         href="#speck-design-ideas"
+         data-src="post1-2-gallery-2.html"
+         data-name="2. 'speck' design ideas"
+         data-slug="speck-design-ideas">
         <div class="nav-item-top">
           <span class="nav-num">2. speck design ideas</span>
-          <span class="nav-status status-dev">dev</span>
         </div>
-        <span class="nav-desc">LiquidFun gallery — world, glyph break, speck word (arrows; shareable # per demo)</span>
+        <span class="nav-desc">Venn diagram slides 4 and 5</span>
       </a>
 
       <a class="nav-item"
-         href="#speck-break"
-         data-src="post1-2-gallery-3.html"
-         data-name="3. speck break"
-         data-slug="speck-break">
+         href="#speck-testings"
+         data-src="liquidfun-phases/liquidfun-gallery.html"
+         data-name="3. 'speck' testings"
+         data-slug="speck-testings">
         <div class="nav-item-top">
-          <span class="nav-num">3. speck break</span>
-          <span class="nav-status status-dev">dev</span>
+          <span class="nav-num">3. speck testings</span>
         </div>
-        <span class="nav-desc">Speck break (Venn) — single view in the shared gallery shell</span>
+        <span class="nav-desc">LiquidFun gallery — world, glyph break, speck word</span>
+      </a>
+
+      <a class="nav-item"
+         href="#speck-dev-process"
+         data-src="post1-2-gallery-4.html"
+         data-name="4. 'speck' dev process"
+         data-slug="speck-dev-process">
+        <div class="nav-item-top">
+          <span class="nav-num">4. speck dev process</span>
+        </div>
+        <span class="nav-desc">Current dev-process slide from prior gallery 3</span>
       </a>
 
     </nav>
@@ -430,9 +412,10 @@
 
     var mq = window.matchMedia('(max-width: 768px)');
 
-    /** Short links: #0 #doc #md (this doc), #1 #2 #3, aliases. LiquidFun deep: #liquidfun-world, #glyph-break, #speck-word (item 2 iframe). Item 3 deep: #speck-break-venn. */
-    var LIQUIDFUN_SLUG = 'liquidfun';
-    var SPECK_BREAK_SLUG = 'speck-break';
+    /** Short links: #0 #doc #md (this doc), #1 #2 #3 #4. Item 2 deep: #venn-frame-4/#venn-frame-5; item 3 deep: #liquidfun-world/#glyph-break/#speck-word; item 4 deep: #speck-dev-process. */
+    var SPECK_DESIGN_SLUG = 'speck-design-ideas';
+    var SPECK_TESTINGS_SLUG = 'speck-testings';
+    var SPECK_DEV_SLUG = 'speck-dev-process';
     var SLUG_ALIASES = {
       '0': 'motion-post-1-2-doc',
       doc: 'motion-post-1-2-doc',
@@ -441,15 +424,16 @@
       '1': 'gallery',
       p5: 'gallery',
       matter: 'gallery',
-      '2': 'liquidfun',
-      liquidfun: 'liquidfun',
-      '3': 'speck-break',
-      '4': 'glyph-break',
-      '5': 'speck-word',
-      composite: 'speck-break',
-      fluid: 'speck-break',
-      vennfluid: 'speck-break',
-      speckbreak: 'speck-break',
+      '2': 'speck-design-ideas',
+      design: 'speck-design-ideas',
+      '3': 'speck-testings',
+      testing: 'speck-testings',
+      testings: 'speck-testings',
+      liquidfun: 'speck-testings',
+      '4': 'speck-dev-process',
+      dev: 'speck-dev-process',
+      process: 'speck-dev-process',
+      speckdev: 'speck-dev-process',
       world: 'liquidfun-world',
       liquid: 'liquidfun-world',
       glyph: 'glyph-break',
@@ -457,12 +441,16 @@
       speck: 'speck-word',
     };
 
-    function isLiquidfunSubslug(s) {
+    function isSpeckDesignSubslug(s) {
+      return s === 'venn-frame-4' || s === 'venn-frame-5';
+    }
+
+    function isSpeckTestingSubslug(s) {
       return s === 'liquidfun-world' || s === 'glyph-break' || s === 'speck-word';
     }
 
-    function isSpeckBreakSubslug(s) {
-      return s === 'speck-break-venn';
+    function isSpeckDevSubslug(s) {
+      return s === 'speck-dev-process';
     }
 
     function canonicalSlug(raw) {
@@ -474,14 +462,19 @@
     function itemForSlug(slug) {
       slug = canonicalSlug(slug);
       if (!slug) return null;
-      if (slug === LIQUIDFUN_SLUG || isLiquidfunSubslug(slug)) {
+      if (slug === SPECK_DESIGN_SLUG || isSpeckDesignSubslug(slug)) {
         for (var j = 0; j < items.length; j++) {
-          if (items[j].getAttribute('data-slug') === LIQUIDFUN_SLUG) return items[j];
+          if (items[j].getAttribute('data-slug') === SPECK_DESIGN_SLUG) return items[j];
         }
       }
-      if (slug === SPECK_BREAK_SLUG || isSpeckBreakSubslug(slug)) {
+      if (slug === SPECK_TESTINGS_SLUG || isSpeckTestingSubslug(slug)) {
         for (var k = 0; k < items.length; k++) {
-          if (items[k].getAttribute('data-slug') === SPECK_BREAK_SLUG) return items[k];
+          if (items[k].getAttribute('data-slug') === SPECK_TESTINGS_SLUG) return items[k];
+        }
+      }
+      if (slug === SPECK_DEV_SLUG || isSpeckDevSubslug(slug)) {
+        for (var m = 0; m < items.length; m++) {
+          if (items[m].getAttribute('data-slug') === SPECK_DEV_SLUG) return items[m];
         }
       }
       for (var i = 0; i < items.length; i++) {
@@ -503,19 +496,26 @@
       var src = item.getAttribute('data-src');
       var rawHash = (location.hash || '').replace(/^#/, '').trim();
       var c = canonicalSlug(rawHash);
-      if (item.getAttribute('data-slug') === LIQUIDFUN_SLUG) {
-        var sub = 'liquidfun-world';
-        if (isLiquidfunSubslug(c)) sub = c;
-        else if (c === LIQUIDFUN_SLUG) sub = 'liquidfun-world';
+      if (item.getAttribute('data-slug') === SPECK_DESIGN_SLUG) {
+        var sub2 = 'venn-frame-4';
+        if (isSpeckDesignSubslug(c)) sub2 = c;
+        else if (c === SPECK_DESIGN_SLUG) sub2 = 'venn-frame-4';
         var base = src.split('#')[0];
-        src = base + '#' + sub;
+        src = base + '#' + sub2;
       }
-      if (item.getAttribute('data-slug') === SPECK_BREAK_SLUG) {
-        var sub3 = 'speck-break-venn';
-        if (isSpeckBreakSubslug(c)) sub3 = c;
-        else if (c === SPECK_BREAK_SLUG) sub3 = 'speck-break-venn';
+      if (item.getAttribute('data-slug') === SPECK_TESTINGS_SLUG) {
+        var sub3 = 'liquidfun-world';
+        if (isSpeckTestingSubslug(c)) sub3 = c;
+        else if (c === SPECK_TESTINGS_SLUG) sub3 = 'liquidfun-world';
         var base3 = src.split('#')[0];
         src = base3 + '#' + sub3;
+      }
+      if (item.getAttribute('data-slug') === SPECK_DEV_SLUG) {
+        var sub4 = 'speck-dev-process';
+        if (isSpeckDevSubslug(c)) sub4 = c;
+        else if (c === SPECK_DEV_SLUG) sub4 = 'speck-dev-process';
+        var base4 = src.split('#')[0];
+        src = base4 + '#' + sub4;
       }
       frame.src = src;
       nameEl.textContent = item.getAttribute('data-name');

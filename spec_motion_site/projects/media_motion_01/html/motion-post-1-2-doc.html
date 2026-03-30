@@ -203,6 +203,97 @@
       var statusEl = document.getElementById('status');
       var btnDownload = document.getElementById('btnDownload');
       var btnSave = document.getElementById('btnSave');
+      var currentFileHandle = null;
+      var saveInFlight = false;
+      var IDB_NAME = 'motion-post-1-2-doc';
+      var IDB_STORE = 'handles';
+      var IDB_KEY = 'mdFile';
+
+      function idbOpen() {
+        return new Promise(function (resolve, reject) {
+          var req = indexedDB.open(IDB_NAME, 1);
+          req.onerror = function () { reject(req.error); };
+          req.onupgradeneeded = function () {
+            req.result.createObjectStore(IDB_STORE);
+          };
+          req.onsuccess = function () { resolve(req.result); };
+        });
+      }
+
+      function idbGet(key) {
+        return idbOpen().then(function (db) {
+          return new Promise(function (resolve, reject) {
+            var tx = db.transaction(IDB_STORE, 'readonly');
+            var req = tx.objectStore(IDB_STORE).get(key);
+            req.onerror = function () { reject(req.error); };
+            req.onsuccess = function () { resolve(req.result); };
+          });
+        });
+      }
+
+      function idbPut(key, value) {
+        return idbOpen().then(function (db) {
+          return new Promise(function (resolve, reject) {
+            var tx = db.transaction(IDB_STORE, 'readwrite');
+            tx.oncomplete = function () { resolve(); };
+            tx.onerror = function () { reject(tx.error); };
+            tx.objectStore(IDB_STORE).put(value, key);
+          });
+        });
+      }
+
+      function idbDelete(key) {
+        return idbOpen().then(function (db) {
+          return new Promise(function (resolve, reject) {
+            var tx = db.transaction(IDB_STORE, 'readwrite');
+            tx.oncomplete = function () { resolve(); };
+            tx.onerror = function () { reject(tx.error); };
+            tx.objectStore(IDB_STORE).delete(key);
+          });
+        });
+      }
+
+      function clearPersistedHandle() {
+        if (typeof indexedDB === 'undefined') return Promise.resolve();
+        return idbDelete(IDB_KEY).catch(function () {});
+      }
+
+      function persistHandle(handle) {
+        if (!handle || typeof indexedDB === 'undefined') return Promise.resolve();
+        return idbPut(IDB_KEY, handle).catch(function () {});
+      }
+
+      function restoreLinkedHandle() {
+        if (typeof indexedDB === 'undefined') return Promise.resolve();
+        return idbGet(IDB_KEY).then(function (handle) {
+          if (!handle || typeof handle.queryPermission !== 'function') return;
+          return handle.queryPermission({ mode: 'readwrite' }).then(function (state) {
+            if (state === 'denied') return;
+            currentFileHandle = handle;
+            if (state === 'granted') {
+              setStatus('Linked file — Cmd+S saves here.');
+            } else {
+              setStatus('Linked file — Cmd+S may ask for write access once.');
+            }
+          });
+        }).catch(function () {});
+      }
+
+      var restorePromise = restoreLinkedHandle().catch(function () {});
+
+      function ensureWritePermission(handle) {
+        if (!handle || typeof handle.queryPermission !== 'function') {
+          return Promise.resolve(true);
+        }
+        return handle.queryPermission({ mode: 'readwrite' }).then(function (state) {
+          if (state === 'granted') return true;
+          if (state === 'denied') return false;
+          if (typeof handle.requestPermission !== 'function') return false;
+          return handle.requestPermission({ mode: 'readwrite' }).then(function (s) {
+            return s === 'granted';
+          });
+        });
+      }
 
       function setStatus(msg, isErr) {
         statusEl.textContent = msg || '';
@@ -241,19 +332,76 @@
 
       btnDownload.addEventListener('click', downloadBlob);
 
+      function writeToHandle(handle) {
+        return ensureWritePermission(handle).then(function (ok) {
+          if (!ok) {
+            var err = new Error('Write permission denied');
+            err.name = 'NotAllowedError';
+            throw err;
+          }
+          return handle.createWritable();
+        }).then(function (writable) {
+          writable.write(editor.value);
+          return writable.close();
+        });
+      }
+
+      function pickSaveFileAndWrite() {
+        return window.showSaveFilePicker({
+          suggestedName: SUGGEST_NAME,
+          types: [{ description: 'Markdown', accept: { 'text/markdown': ['.md'] } }],
+        }).then(function (handle) {
+          currentFileHandle = handle;
+          return writeToHandle(handle).then(function () {
+            return persistHandle(handle);
+          });
+        }).then(function () {
+          setStatus('Saved.');
+        });
+      }
+
+      function saveToCurrentFile() {
+        if (typeof window.showSaveFilePicker !== 'function') {
+          downloadBlob();
+          return Promise.resolve();
+        }
+        if (saveInFlight) return Promise.resolve();
+        saveInFlight = true;
+
+        function finish() {
+          saveInFlight = false;
+        }
+
+        return restorePromise
+          .then(function () {
+            if (currentFileHandle) {
+              return writeToHandle(currentFileHandle)
+                .then(function () {
+                  return persistHandle(currentFileHandle);
+                })
+                .then(function () {
+                  setStatus('Saved.');
+                })
+                .catch(function (e) {
+                  if (e && e.name === 'AbortError') throw e;
+                  currentFileHandle = null;
+                  return clearPersistedHandle().then(function () {
+                    return pickSaveFileAndWrite();
+                  });
+                });
+            }
+            return pickSaveFileAndWrite();
+          })
+          .catch(function (e) {
+            if (e && e.name === 'AbortError') return;
+            throw e;
+          })
+          .finally(finish);
+      }
+
       if (typeof window.showSaveFilePicker === 'function') {
         btnSave.addEventListener('click', function () {
-          window.showSaveFilePicker({
-            suggestedName: SUGGEST_NAME,
-            types: [{ description: 'Markdown', accept: { 'text/markdown': ['.md'] } }],
-          }).then(function (handle) {
-            return handle.createWritable();
-          }).then(function (writable) {
-            writable.write(editor.value);
-            return writable.close();
-          }).then(function () {
-            setStatus('Saved.');
-          }).catch(function (e) {
+          saveToCurrentFile().catch(function (e) {
             if (e && e.name === 'AbortError') return;
             setStatus(e && e.message ? e.message : 'Save failed', true);
           });
@@ -262,15 +410,31 @@
         btnSave.style.display = 'none';
       }
 
+      window.addEventListener('keydown', function (e) {
+        var isSave = (e.key === 's' || e.key === 'S') && (e.metaKey || e.ctrlKey);
+        if (!isSave) return;
+        e.preventDefault();
+        saveToCurrentFile().catch(function (err) {
+          if (err && err.name === 'AbortError') return;
+          setStatus(err && err.message ? err.message : 'Save failed', true);
+        });
+      });
+
       fetch(MD_URL)
         .then(function (r) {
           if (!r.ok) throw new Error('HTTP ' + r.status);
           return r.text();
         })
         .then(function (text) {
-          editor.value = text;
-          render();
-          setStatus('Loaded from repo path. Edits stay in the browser until you download or save.');
+          return restorePromise.then(function () {
+            editor.value = text;
+            render();
+            if (currentFileHandle) {
+              setStatus('Loaded from repo path. Cmd+S writes to your linked .md file.');
+            } else {
+              setStatus('Loaded from repo path. Edits stay in the browser until you download or save.');
+            }
+          });
         })
         .catch(function (e) {
           editor.value = '# Could not load ' + MD_URL + '\n\n' +

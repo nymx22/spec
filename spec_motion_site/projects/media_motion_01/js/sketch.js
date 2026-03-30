@@ -14,6 +14,29 @@ const WORD_ZOOM_MAX = 1.5;
 const WORD_ZOOM_OUT_END = 0.5;
 
 const WORDS = ['speck', 'inspect', 'spectrum'];
+
+/** Compact gallery frame 4: speck ∩ spectrum \ inspect. */
+const SPECK_SPECTRUM_OVERLAP_PHRASES = [
+  'personal narrative',
+  'rituals and ceremonies',
+  'history',
+  'ephemera',
+];
+
+/** Compact gallery frame 5: inspect ∩ spectrum \ speck. */
+const INSPECT_SPECTRUM_PAIR_PHRASES = [
+  'cultural, media studies',
+  'print, digital media',
+];
+
+/** Compact gallery frame 6: speck ∩ inspect \ spectrum. */
+const SPECK_INSPECT_SPACE_PHRASES = [
+  'territorial regional studies',
+  'ethnography',
+  'geography',
+  'landscape',
+  'study of space',
+];
 const TOTAL_LETTERS = 5 + 7 + 8; // 20
 
 const sGap = 50; // vertical spacing for three words inside single circle
@@ -1051,9 +1074,13 @@ function draw() {
   const r = 120 * ls;
   const size = r * 2;
 
+  const galleryMaxFrame = (typeof window !== 'undefined' && window.__SPEC_GALLERY_MAX_FRAME)
+    ? Number(window.__SPEC_GALLERY_MAX_FRAME)
+    : 3;
   const galleryFrame = galleryMode
-    ? Math.max(1, Math.min(5, (typeof window !== 'undefined' && window.__SPEC_GALLERY_FRAME__) ? Number(window.__SPEC_GALLERY_FRAME__) : 1))
+    ? Math.max(1, Math.min(galleryMaxFrame, (typeof window !== 'undefined' && window.__SPEC_GALLERY_FRAME__) ? Number(window.__SPEC_GALLERY_FRAME__) : 1))
     : 0;
+  const galleryExtended = galleryMode && typeof window !== 'undefined' && window.__SPEC_GALLERY_EXTENDED__ === true;
 
   // Original 's' position in "spec" (centered at cx, cy) — keep s here before adding words
   const specTextPx = 44 * ls;
@@ -1096,8 +1123,10 @@ function draw() {
   const vennD = VENN_SIZE_SCALED * ls;
   const vennTextPx = VENN_TEXT_SIZE * ls;
   // Frame mapping:
-  // 1: base, 2: spread, 3: spread+zoom, 4: motion 1->2->3 (ink), 5: motion 1->2->3 (sediment)
-  const vennTargets = (galleryMode && (galleryFrame === 2 || galleryFrame === 3)) ? vennTargetsSpread : vennTargetsBase;
+  // 1: base, 2: spread, 3: motion 1->2->zoom (no speck-specific physics effects)
+  const vennTargets = (galleryMode && (galleryFrame === 2 || (galleryFrame === 3 && galleryExtended)))
+    ? vennTargetsSpread
+    : vennTargetsBase;
   // Black & white palette (grayscale). Same fill so overlaps read slightly darker.
   const vennColors = [
     [235, 235, 235, 150],
@@ -1118,7 +1147,7 @@ function draw() {
 
     const finalLayouts = cachedFinalLayouts;
 
-    // --- camera for frames 1/2/3/4/5 ---
+    // --- camera for frames 1/2/3 ---
     // Zoom/motion target is based on the SPREAD layout (the "speck" circle in frame 2/3).
     const speckCenterSpread = vennTargetsSpread[0];
     const zoom2 = 2.35;
@@ -1131,14 +1160,819 @@ function draw() {
     // Frame 2 camera (zoomed-in on speck circle)
     const cam2 = { x: speckCenterSpread.x, y: speckCenterSpread.y, zoom: zoom2, screenY: screen2Y };
 
-    // Frame 3: static zoomed view
-    let camX = (galleryFrame === 3) ? cam2.x : cam1.x;
-    let camY = (galleryFrame === 3) ? cam2.y : cam1.y;
-    let camZoom = (galleryFrame === 3) ? cam2.zoom : cam1.zoom;
-    let screenY = (galleryFrame === 3) ? cam2.screenY : cam1.screenY;
+    // Frame 3: transition motion (1 -> 2 -> zoom)
+    let camX = (galleryFrame === 3 && galleryExtended) ? cam2.x : cam1.x;
+    let camY = (galleryFrame === 3 && galleryExtended) ? cam2.y : cam1.y;
+    let camZoom = (galleryFrame === 3 && galleryExtended) ? cam2.zoom : cam1.zoom;
+    let screenY = (galleryFrame === 3 && galleryExtended) ? cam2.screenY : cam1.screenY;
+
+    if (galleryFrame === 3 && !galleryExtended) {
+      if (typeof window !== 'undefined') {
+        window.__SPEC_FRAME4_END__ = null;
+        window.__SPEC_FRAME5_END__ = null;
+      }
+      const forceRestart = (typeof window !== 'undefined' && window.__SPEC_FORCE_MOTION_RESTART__);
+      if (galleryLastFrame !== 3 || forceRestart) {
+        galleryAnimStartMs = millis();
+        if (typeof window !== 'undefined') window.__SPEC_FORCE_MOTION_RESTART__ = false;
+        loop();
+      }
+      const u = (millis() - galleryAnimStartMs) / 2000;
+      const t = Math.max(0, Math.min(1, u));
+      const done = t >= 1;
+
+      const a = Math.max(0, Math.min(1, t / 0.45));
+      const easeA = easeInOutCubic(a);
+      const curOffset = lerp(vennOff, vennOff * 1.35, easeA);
+      const curTargets = vennTargetsFor(curOffset);
+
+      const b = Math.max(0, Math.min(1, (t - 0.45) / 0.55));
+      const easeB = easeInOutCubic(b);
+      const curSpeck = curTargets[0];
+      camX = lerp(cam1.x, curSpeck.x, easeB);
+      camY = lerp(cam1.y, curSpeck.y, easeB);
+      camZoom = lerp(1, zoom2, easeB);
+      screenY = lerp(cy, desiredSpeckCenterY, easeB);
+
+      computeExclusiveLabelLayout.fixedThetas = FIXED_LABEL_THETAS;
+      const curLayouts = computeExclusiveLabelLayout(curTargets, rFinal, WORDS, vennTextPx);
+
+      push();
+      translate(cx, screenY);
+      scale(camZoom);
+      translate(-camX, -camY);
+
+      for (let i = 0; i < 3; i++) {
+        const x = curTargets[i].x;
+        const y = curTargets[i].y;
+        noStroke();
+        fill(245, 120);
+        ellipse(x, y, vennD, vennD);
+        noFill();
+        stroke(120, 220);
+        strokeWeight(3 * ls);
+        strokeJoin(ROUND);
+        strokeCap(ROUND);
+        ellipse(x, y, vennD, vennD);
+      }
+
+      for (let i = 0; i < 3; i++) {
+        const x = curTargets[i].x;
+        const y = curTargets[i].y;
+        const wx = x + curLayouts[i].dx;
+        const wy = y + curLayouts[i].dy;
+        fill(0);
+        textAlign(CENTER, CENTER);
+        textSize(vennTextPx);
+        noStroke();
+        push();
+        translate(wx, wy);
+        rotate(curLayouts[i].theta);
+        text(WORDS[i], 0, 0);
+        pop();
+      }
+      pop();
+
+      galleryLastFrame = galleryFrame;
+      if (done) noLoop();
+      return;
+    }
+
+    // Gallery 1 only: frame 4 = from zoomed speck, center graph on canvas, rotate ~60° left about graph centroid;
+    // phrases sit in speck∩spectrum but outside inspect (no triple overlap), drawn horizontal in screen space.
+    if (galleryFrame === 4 && !galleryExtended) {
+      const overlapStill = typeof window !== 'undefined' && window.__SPEC_OVERLAP_STILL__ === true;
+      const targets = vennTargetsSpread;
+      const c0 = targets[0];
+      const c1 = targets[1];
+      const c2 = targets[2];
+      const graphCX = (c0.x + c1.x + c2.x) / 3;
+      const graphCY = (c0.y + c1.y + c2.y) / 3;
+      const dx = c2.x - c0.x;
+      const dy = c2.y - c0.y;
+      const d = Math.sqrt(dx * dx + dy * dy) || 1;
+      const midSpX = (c0.x + c2.x) / 2;
+      const midSpY = (c0.y + c2.y) / 2;
+      const chordHalf = Math.sqrt(Math.max(0.0001, rFinal * rFinal - (d * d) / 4));
+      const rSpeck = rFinal;
+      // speck ∩ spectrum minus inspect interior: centroid via grid sample (centers phrases in the almond).
+      const inSpeckSpectrumOnlyLobe = (px, py) => {
+        const d0 = Math.sqrt((px - c0.x) ** 2 + (py - c0.y) ** 2);
+        const d1 = Math.sqrt((px - c1.x) ** 2 + (py - c1.y) ** 2);
+        const d2 = Math.sqrt((px - c2.x) ** 2 + (py - c2.y) ** 2);
+        return d0 <= rSpeck * 0.99 && d2 <= rSpeck * 0.99 && d1 >= rSpeck * 1.02;
+      };
+      let phraseWx = midSpX;
+      let phraseWy = midSpY;
+      let lobeRadiusWorld = Math.max(chordHalf * 0.92, 16 * ls);
+      {
+        const pad = rSpeck * 1.05;
+        const bx0 = Math.min(c0.x, c1.x, c2.x) - pad;
+        const bx1 = Math.max(c0.x, c1.x, c2.x) + pad;
+        const by0 = Math.min(c0.y, c1.y, c2.y) - pad;
+        const by1 = Math.max(c0.y, c1.y, c2.y) + pad;
+        const gridN = 22;
+        let accX = 0;
+        let accY = 0;
+        let nHit = 0;
+        for (let gi = 0; gi <= gridN; gi++) {
+          for (let gj = 0; gj <= gridN; gj++) {
+            const px = bx0 + ((bx1 - bx0) * gi) / gridN;
+            const py = by0 + ((by1 - by0) * gj) / gridN;
+            if (inSpeckSpectrumOnlyLobe(px, py)) {
+              accX += px;
+              accY += py;
+              nHit++;
+            }
+          }
+        }
+        if (nHit > 0) {
+          phraseWx = accX / nHit;
+          phraseWy = accY / nHit;
+          let maxD = 0;
+          for (let gi = 0; gi <= gridN; gi++) {
+            for (let gj = 0; gj <= gridN; gj++) {
+              const px = bx0 + ((bx1 - bx0) * gi) / gridN;
+              const py = by0 + ((by1 - by0) * gj) / gridN;
+              if (inSpeckSpectrumOnlyLobe(px, py)) {
+                const dd = Math.sqrt((px - phraseWx) ** 2 + (py - phraseWy) ** 2);
+                if (dd > maxD) maxD = dd;
+              }
+            }
+          }
+          lobeRadiusWorld = Math.max(maxD * 1.12, 14 * ls);
+        }
+      }
+
+      if (galleryLastFrame !== 4) {
+        if (!overlapStill) galleryAnimStartMs = millis();
+        loop();
+      }
+      const tAnim = overlapStill
+        ? 1
+        : Math.max(0, Math.min(1, (millis() - galleryAnimStartMs) / 1200));
+      const easeAnim = easeInOutCubic(tAnim);
+      const zoom2 = 2.35;
+      const desiredSpeckCenterY = height * 0.75;
+      const cam2 = { x: targets[0].x, y: targets[0].y, zoom: zoom2, screenY: desiredSpeckCenterY };
+      // p5: positive rotate = CW; “60° left” = CCW
+      const rotEnd = (-60 * Math.PI) / 180;
+      const angle = rotEnd * easeAnim;
+      // Zoom so the phrase lobe (~2 * lobeRadiusWorld across) fills more of the shorter canvas side (larger type).
+      const fitSideFrac = 0.8;
+      const zoomTarget = Math.min(
+        6.6,
+        Math.max(zoom2 + 0.4, (Math.min(width, height) * fitSideFrac) / Math.max(2 * lobeRadiusWorld, 18 * ls)),
+      );
+      const camZoom = lerp(zoom2, zoomTarget, easeAnim);
+      // Camera follows the phrase-lobe centroid in *rotated* world space so that point stays at screen center.
+      const phraseRotAt = (a) => {
+        const ca = Math.cos(a);
+        const sa = Math.sin(a);
+        const ox = phraseWx - graphCX;
+        const oy = phraseWy - graphCY;
+        return {
+          x: graphCX + ca * ox - sa * oy,
+          y: graphCY + sa * ox + ca * oy,
+        };
+      };
+      const pr = phraseRotAt(angle);
+      const camX = lerp(cam2.x, pr.x, easeAnim);
+      const camY = lerp(cam2.y, pr.y, easeAnim);
+      const screenY = lerp(cam2.screenY, cy, easeAnim);
+
+      const rotWorldToScreen = (wx, wy) => {
+        const ca = Math.cos(angle);
+        const sa = Math.sin(angle);
+        const ox = wx - graphCX;
+        const oy = wy - graphCY;
+        const rx = graphCX + ca * ox - sa * oy;
+        const ry = graphCY + sa * ox + ca * oy;
+        return {
+          x: (rx - camX) * camZoom + cx,
+          y: (ry - camY) * camZoom + screenY,
+        };
+      };
+
+      // Phrases use the *end* camera/zoom/angle only so size/position do not jitter while motion eases.
+      const anglePh = rotEnd;
+      const zoomPh = zoomTarget;
+      const prPh = phraseRotAt(anglePh);
+      const camXPh = prPh.x;
+      const camYPh = prPh.y;
+      const screenYPh = cy;
+      const screenToUnrotWorldPhrase = (sx, sy) => {
+        const rx = (sx - cx) / zoomPh + camXPh;
+        const ry = (sy - screenYPh) / zoomPh + camYPh;
+        const ca = Math.cos(anglePh);
+        const sa = Math.sin(anglePh);
+        const ddx = rx - graphCX;
+        const ddy = ry - graphCY;
+        const ox = ca * ddx + sa * ddy;
+        const oy = -sa * ddx + ca * ddy;
+        return { x: graphCX + ox, y: graphCY + oy };
+      };
+
+      computeExclusiveLabelLayout.fixedThetas = FIXED_LABEL_THETAS;
+      const curLayouts = computeExclusiveLabelLayout(targets, rFinal, WORDS, vennTextPx);
+
+      push();
+      translate(cx, screenY);
+      scale(camZoom);
+      translate(-camX, -camY);
+      translate(graphCX, graphCY);
+      rotate(angle);
+      translate(-graphCX, -graphCY);
+
+      for (let i = 0; i < 3; i++) {
+        const x = targets[i].x;
+        const y = targets[i].y;
+        noStroke();
+        fill(245, 120);
+        ellipse(x, y, vennD, vennD);
+        noFill();
+        stroke(120, 220);
+        strokeWeight(3 * ls);
+        strokeJoin(ROUND);
+        strokeCap(ROUND);
+        ellipse(x, y, vennD, vennD);
+      }
+
+      for (let i = 0; i < 3; i++) {
+        const x = targets[i].x;
+        const y = targets[i].y;
+        const wx = x + curLayouts[i].dx;
+        const wy = y + curLayouts[i].dy;
+        fill(0);
+        textAlign(CENTER, CENTER);
+        textSize(vennTextPx);
+        noStroke();
+        push();
+        translate(wx, wy);
+        rotate(curLayouts[i].theta);
+        text(WORDS[i], 0, 0);
+        pop();
+      }
+
+      pop();
+
+      // Fade in after pan/zoom/rotate are mostly settled; stable layout + smootherstep avoids bumpy pops.
+      const phraseFadeT0 = 0.64;
+      if (tAnim > phraseFadeT0) {
+        const u = Math.max(0, Math.min(1, (tAnim - phraseFadeT0) / (1 - phraseFadeT0)));
+        const phraseEase = smootherstep(u);
+        const phrases = SPECK_SPECTRUM_OVERLAP_PHRASES;
+        const baseScr = { x: cx, y: cy };
+        const padScr = Math.max(3, 4 * ls);
+        const lineLead = 1.22;
+        const blockCornersInLobe = (sizeScr, ctrX, ctrY) => {
+          textSize(sizeScr);
+          const lineStep = sizeScr * lineLead;
+          let maxTw = 0;
+          for (let i = 0; i < phrases.length; i++) maxTw = Math.max(maxTw, textWidth(phrases[i]));
+          const halfW = maxTw / 2 + padScr;
+          const halfH = (phrases.length * lineStep) / 2 + padScr;
+          const xs = [-halfW, 0, halfW, -halfW, halfW, -halfW, 0, halfW];
+          const ys = [-halfH, -halfH, -halfH, 0, 0, halfH, halfH, halfH];
+          for (let k = 0; k < xs.length; k++) {
+            const w = screenToUnrotWorldPhrase(ctrX + xs[k], ctrY + ys[k]);
+            if (!inSpeckSpectrumOnlyLobe(w.x, w.y)) return false;
+          }
+          return true;
+        };
+        let phraseSizeScreen = Math.min(13 * ls * zoomPh, chordHalf * 0.95 * zoomPh);
+        while (phraseSizeScreen > 3.2 * ls * zoomPh) {
+          textSize(phraseSizeScreen);
+          let maxTw = 0;
+          for (let i = 0; i < phrases.length; i++) maxTw = Math.max(maxTw, textWidth(phrases[i]));
+          if (maxTw + 2 * padScr > chordHalf * 1.9 * zoomPh) {
+            phraseSizeScreen -= 0.35 * ls * zoomPh;
+            continue;
+          }
+          if (blockCornersInLobe(phraseSizeScreen, baseScr.x, baseScr.y)) break;
+          phraseSizeScreen -= 0.35 * ls * zoomPh;
+        }
+        while (phraseSizeScreen > 2.4 * ls * zoomPh && !blockCornersInLobe(phraseSizeScreen, baseScr.x, baseScr.y)) {
+          phraseSizeScreen -= 0.28 * ls * zoomPh;
+        }
+        push();
+        resetMatrix();
+        textSize(phraseSizeScreen);
+        const lineStep = phraseSizeScreen * lineLead;
+        textLeading(lineStep);
+        textAlign(CENTER, CENTER);
+        fill(0, 255 * phraseEase);
+        noStroke();
+        const n = phrases.length;
+        const mid = (n - 1) / 2;
+        for (let pi = 0; pi < n; pi++) {
+          text(phrases[pi], baseScr.x, baseScr.y + (pi - mid) * lineStep);
+        }
+        pop();
+      }
+
+      // Handoff to compact slide 4: keep current camera, zoom, and rotation (even mid-animation).
+      if (!overlapStill && typeof window !== 'undefined') {
+        window.__SPEC_FRAME4_END__ = { camX, camY, camZoom, screenY, angle };
+      }
+
+      galleryLastFrame = galleryFrame;
+      if (tAnim >= 1) noLoop();
+      return;
+    }
+
+    // Compact frame 5: inspect ∩ spectrum \ speck; from slide 3 add −120° (e.g. −60° → −180°).
+    if (galleryFrame === 5 && !galleryExtended) {
+      const targets = vennTargetsSpread;
+      const c0 = targets[0];
+      const c1 = targets[1];
+      const c2 = targets[2];
+      const graphCX = (c0.x + c1.x + c2.x) / 3;
+      const graphCY = (c0.y + c1.y + c2.y) / 3;
+      const dx = c2.x - c1.x;
+      const dy = c2.y - c1.y;
+      const d = Math.sqrt(dx * dx + dy * dy) || 1;
+      const chordHalf = Math.sqrt(Math.max(0.0001, rFinal * rFinal - (d * d) / 4));
+      const rCirc = rFinal;
+      const inInspectSpectrumOnlyLobe = (px, py) => {
+        const d0 = Math.sqrt((px - c0.x) ** 2 + (py - c0.y) ** 2);
+        const d1 = Math.sqrt((px - c1.x) ** 2 + (py - c1.y) ** 2);
+        const d2 = Math.sqrt((px - c2.x) ** 2 + (py - c2.y) ** 2);
+        return d1 <= rCirc * 0.99 && d2 <= rCirc * 0.99 && d0 >= rCirc * 1.02;
+      };
+      let phraseWx = (c1.x + c2.x) / 2;
+      let phraseWy = (c1.y + c2.y) / 2;
+      let lobeRadiusWorld = Math.max(chordHalf * 0.92, 16 * ls);
+      {
+        const pad = rCirc * 1.05;
+        const bx0 = Math.min(c0.x, c1.x, c2.x) - pad;
+        const bx1 = Math.max(c0.x, c1.x, c2.x) + pad;
+        const by0 = Math.min(c0.y, c1.y, c2.y) - pad;
+        const by1 = Math.max(c0.y, c1.y, c2.y) + pad;
+        const gridN = 22;
+        let accX = 0;
+        let accY = 0;
+        let nHit = 0;
+        for (let gi = 0; gi <= gridN; gi++) {
+          for (let gj = 0; gj <= gridN; gj++) {
+            const px = bx0 + ((bx1 - bx0) * gi) / gridN;
+            const py = by0 + ((by1 - by0) * gj) / gridN;
+            if (inInspectSpectrumOnlyLobe(px, py)) {
+              accX += px;
+              accY += py;
+              nHit++;
+            }
+          }
+        }
+        if (nHit > 0) {
+          phraseWx = accX / nHit;
+          phraseWy = accY / nHit;
+          let maxD = 0;
+          for (let gi = 0; gi <= gridN; gi++) {
+            for (let gj = 0; gj <= gridN; gj++) {
+              const px = bx0 + ((bx1 - bx0) * gi) / gridN;
+              const py = by0 + ((by1 - by0) * gj) / gridN;
+              if (inInspectSpectrumOnlyLobe(px, py)) {
+                const dd = Math.sqrt((px - phraseWx) ** 2 + (py - phraseWy) ** 2);
+                if (dd > maxD) maxD = dd;
+              }
+            }
+          }
+          lobeRadiusWorld = Math.max(maxD * 1.12, 14 * ls);
+        }
+      }
+
+      const pairStill = typeof window !== 'undefined' && window.__SPEC_MEDIA_PAIR_STILL__ === true;
+      if (galleryLastFrame !== 5) {
+        if (!pairStill) galleryAnimStartMs = millis();
+        loop();
+      }
+      const fitSideFrac = 0.8;
+      const zoom2 = 2.35;
+      const zoomTarget = Math.min(
+        6.6,
+        Math.max(zoom2 + 0.4, (Math.min(width, height) * fitSideFrac) / Math.max(2 * lobeRadiusWorld, 18 * ls)),
+      );
+      const phraseRotAt = (a) => {
+        const ca = Math.cos(a);
+        const sa = Math.sin(a);
+        const ox = phraseWx - graphCX;
+        const oy = phraseWy - graphCY;
+        return {
+          x: graphCX + ca * ox - sa * oy,
+          y: graphCY + sa * ox + ca * oy,
+        };
+      };
+
+      const desiredSpeckCenterY = height * 0.75;
+      const f4end = typeof window !== 'undefined' ? window.__SPEC_FRAME4_END__ : null;
+      const fromSlide3 =
+        f4end && typeof f4end.camX === 'number' && typeof f4end.angle === 'number';
+      const rotSlide3 = (-60 * Math.PI) / 180;
+      const rotStep120 = (-120 * Math.PI) / 180;
+      const angleTarget = fromSlide3 ? f4end.angle + rotStep120 : rotStep120;
+      const angleFrom = fromSlide3 ? f4end.angle : 0;
+
+      const tAnim = pairStill
+        ? 1
+        : Math.max(0, Math.min(1, (millis() - galleryAnimStartMs) / 1200));
+      const easeAnim = pairStill ? 1 : easeInOutCubic(tAnim);
+
+      let angle;
+      let camZoom;
+      let camX;
+      let camY;
+      let screenY;
+      if (pairStill) {
+        const aEnd = rotSlide3 + rotStep120;
+        angle = aEnd;
+        camZoom = zoomTarget;
+        const prS = phraseRotAt(aEnd);
+        camX = prS.x;
+        camY = prS.y;
+        screenY = cy;
+      } else {
+        angle = lerp(angleFrom, angleTarget, easeAnim);
+        const cam2f5 = fromSlide3
+          ? { x: f4end.camX, y: f4end.camY, zoom: f4end.camZoom, screenY: f4end.screenY }
+          : { x: targets[0].x, y: targets[0].y, zoom: zoom2, screenY: desiredSpeckCenterY };
+        const pr = phraseRotAt(angle);
+        camZoom = lerp(cam2f5.zoom, zoomTarget, easeAnim);
+        camX = lerp(cam2f5.x, pr.x, easeAnim);
+        camY = lerp(cam2f5.y, pr.y, easeAnim);
+        screenY = lerp(cam2f5.screenY, cy, easeAnim);
+      }
+
+      const anglePh = pairStill ? rotSlide3 + rotStep120 : angleTarget;
+      const zoomPh = zoomTarget;
+      const prPh = phraseRotAt(anglePh);
+      const camXPh = prPh.x;
+      const camYPh = prPh.y;
+      const screenYPh = cy;
+      const screenToUnrotWorldPhrase = (sx, sy) => {
+        const rx = (sx - cx) / zoomPh + camXPh;
+        const ry = (sy - screenYPh) / zoomPh + camYPh;
+        const ca = Math.cos(anglePh);
+        const sa = Math.sin(anglePh);
+        const ddx = rx - graphCX;
+        const ddy = ry - graphCY;
+        const ox = ca * ddx + sa * ddy;
+        const oy = -sa * ddx + ca * ddy;
+        return { x: graphCX + ox, y: graphCY + oy };
+      };
+
+      computeExclusiveLabelLayout.fixedThetas = FIXED_LABEL_THETAS;
+      const curLayouts = computeExclusiveLabelLayout(targets, rFinal, WORDS, vennTextPx);
+
+      push();
+      translate(cx, screenY);
+      scale(camZoom);
+      translate(-camX, -camY);
+      translate(graphCX, graphCY);
+      rotate(angle);
+      translate(-graphCX, -graphCY);
+
+      for (let i = 0; i < 3; i++) {
+        const x = targets[i].x;
+        const y = targets[i].y;
+        noStroke();
+        fill(245, 120);
+        ellipse(x, y, vennD, vennD);
+        noFill();
+        stroke(120, 220);
+        strokeWeight(3 * ls);
+        strokeJoin(ROUND);
+        strokeCap(ROUND);
+        ellipse(x, y, vennD, vennD);
+      }
+
+      for (let i = 0; i < 3; i++) {
+        const x = targets[i].x;
+        const y = targets[i].y;
+        const wx = x + curLayouts[i].dx;
+        const wy = y + curLayouts[i].dy;
+        fill(0);
+        textAlign(CENTER, CENTER);
+        textSize(vennTextPx);
+        noStroke();
+        push();
+        translate(wx, wy);
+        rotate(curLayouts[i].theta);
+        text(WORDS[i], 0, 0);
+        pop();
+      }
+
+      pop();
+
+      const phraseFadeT0 = 0.64;
+      if (tAnim > phraseFadeT0) {
+        const u = Math.max(0, Math.min(1, (tAnim - phraseFadeT0) / (1 - phraseFadeT0)));
+        const phraseEase = smootherstep(u);
+        const phrases = INSPECT_SPECTRUM_PAIR_PHRASES;
+        const baseScr = { x: cx, y: cy };
+        const padScr = Math.max(3, 4 * ls);
+        const lineLead = 1.22;
+        const blockCornersInLobe = (sizeScr, ctrX, ctrY) => {
+          textSize(sizeScr);
+          const lineStep = sizeScr * lineLead;
+          let maxTw = 0;
+          for (let i = 0; i < phrases.length; i++) maxTw = Math.max(maxTw, textWidth(phrases[i]));
+          const halfW = maxTw / 2 + padScr;
+          const halfH = (phrases.length * lineStep) / 2 + padScr;
+          const xs = [-halfW, 0, halfW, -halfW, halfW, -halfW, 0, halfW];
+          const ys = [-halfH, -halfH, -halfH, 0, 0, halfH, halfH, halfH];
+          for (let k = 0; k < xs.length; k++) {
+            const w = screenToUnrotWorldPhrase(ctrX + xs[k], ctrY + ys[k]);
+            if (!inInspectSpectrumOnlyLobe(w.x, w.y)) return false;
+          }
+          return true;
+        };
+        let phraseSizeScreen = Math.min(13 * ls * zoomPh, chordHalf * 0.95 * zoomPh);
+        while (phraseSizeScreen > 3.2 * ls * zoomPh) {
+          textSize(phraseSizeScreen);
+          let maxTw = 0;
+          for (let i = 0; i < phrases.length; i++) maxTw = Math.max(maxTw, textWidth(phrases[i]));
+          if (maxTw + 2 * padScr > chordHalf * 1.9 * zoomPh) {
+            phraseSizeScreen -= 0.35 * ls * zoomPh;
+            continue;
+          }
+          if (blockCornersInLobe(phraseSizeScreen, baseScr.x, baseScr.y)) break;
+          phraseSizeScreen -= 0.35 * ls * zoomPh;
+        }
+        while (phraseSizeScreen > 2.4 * ls * zoomPh && !blockCornersInLobe(phraseSizeScreen, baseScr.x, baseScr.y)) {
+          phraseSizeScreen -= 0.28 * ls * zoomPh;
+        }
+        push();
+        resetMatrix();
+        textSize(phraseSizeScreen);
+        const lineStep = phraseSizeScreen * lineLead;
+        textLeading(lineStep);
+        textAlign(CENTER, CENTER);
+        fill(0, 255 * phraseEase);
+        noStroke();
+        const n = phrases.length;
+        const mid = (n - 1) / 2;
+        for (let pi = 0; pi < n; pi++) {
+          text(phrases[pi], baseScr.x, baseScr.y + (pi - mid) * lineStep);
+        }
+        pop();
+      }
+
+      if (!pairStill && typeof window !== 'undefined') {
+        window.__SPEC_FRAME5_END__ = { camX, camY, camZoom, screenY, angle };
+      }
+
+      galleryLastFrame = galleryFrame;
+      if (tAnim >= 1) noLoop();
+      return;
+    }
+
+    // Compact frame 6: speck ∩ inspect \ spectrum; from frame 5 add −120° (e.g. −180° → −300°).
+    if (galleryFrame === 6 && !galleryExtended) {
+      const targets = vennTargetsSpread;
+      const c0 = targets[0];
+      const c1 = targets[1];
+      const c2 = targets[2];
+      const graphCX = (c0.x + c1.x + c2.x) / 3;
+      const graphCY = (c0.y + c1.y + c2.y) / 3;
+      const dx = c1.x - c0.x;
+      const dy = c1.y - c0.y;
+      const d = Math.sqrt(dx * dx + dy * dy) || 1;
+      const chordHalf = Math.sqrt(Math.max(0.0001, rFinal * rFinal - (d * d) / 4));
+      const rCirc = rFinal;
+      const inSpeckInspectOnlyLobe = (px, py) => {
+        const d0 = Math.sqrt((px - c0.x) ** 2 + (py - c0.y) ** 2);
+        const d1 = Math.sqrt((px - c1.x) ** 2 + (py - c1.y) ** 2);
+        const d2 = Math.sqrt((px - c2.x) ** 2 + (py - c2.y) ** 2);
+        return d0 <= rCirc * 0.99 && d1 <= rCirc * 0.99 && d2 >= rCirc * 1.02;
+      };
+      let phraseWx = (c0.x + c1.x) / 2;
+      let phraseWy = (c0.y + c1.y) / 2;
+      let lobeRadiusWorld = Math.max(chordHalf * 0.92, 16 * ls);
+      {
+        const pad = rCirc * 1.05;
+        const bx0 = Math.min(c0.x, c1.x, c2.x) - pad;
+        const bx1 = Math.max(c0.x, c1.x, c2.x) + pad;
+        const by0 = Math.min(c0.y, c1.y, c2.y) - pad;
+        const by1 = Math.max(c0.y, c1.y, c2.y) + pad;
+        const gridN = 22;
+        let accX = 0;
+        let accY = 0;
+        let nHit = 0;
+        for (let gi = 0; gi <= gridN; gi++) {
+          for (let gj = 0; gj <= gridN; gj++) {
+            const px = bx0 + ((bx1 - bx0) * gi) / gridN;
+            const py = by0 + ((by1 - by0) * gj) / gridN;
+            if (inSpeckInspectOnlyLobe(px, py)) {
+              accX += px;
+              accY += py;
+              nHit++;
+            }
+          }
+        }
+        if (nHit > 0) {
+          phraseWx = accX / nHit;
+          phraseWy = accY / nHit;
+          let maxD = 0;
+          for (let gi = 0; gi <= gridN; gi++) {
+            for (let gj = 0; gj <= gridN; gj++) {
+              const px = bx0 + ((bx1 - bx0) * gi) / gridN;
+              const py = by0 + ((by1 - by0) * gj) / gridN;
+              if (inSpeckInspectOnlyLobe(px, py)) {
+                const dd = Math.sqrt((px - phraseWx) ** 2 + (py - phraseWy) ** 2);
+                if (dd > maxD) maxD = dd;
+              }
+            }
+          }
+          lobeRadiusWorld = Math.max(maxD * 1.12, 14 * ls);
+        }
+      }
+
+      const spaceStill = typeof window !== 'undefined' && window.__SPEC_SPACE_PHRASES_STILL__ === true;
+      if (galleryLastFrame !== 6) {
+        if (!spaceStill) galleryAnimStartMs = millis();
+        loop();
+      }
+      const fitSideFrac = 0.8;
+      const zoom2 = 2.35;
+      const zoomTarget = Math.min(
+        6.6,
+        Math.max(zoom2 + 0.4, (Math.min(width, height) * fitSideFrac) / Math.max(2 * lobeRadiusWorld, 18 * ls)),
+      );
+      const phraseRotAt = (a) => {
+        const ca = Math.cos(a);
+        const sa = Math.sin(a);
+        const ox = phraseWx - graphCX;
+        const oy = phraseWy - graphCY;
+        return {
+          x: graphCX + ca * ox - sa * oy,
+          y: graphCY + sa * ox + ca * oy,
+        };
+      };
+
+      const desiredSpeckCenterY = height * 0.75;
+      const f5end = typeof window !== 'undefined' ? window.__SPEC_FRAME5_END__ : null;
+      const fromSlide5 =
+        f5end && typeof f5end.camX === 'number' && typeof f5end.angle === 'number';
+      const rotSlide3 = (-60 * Math.PI) / 180;
+      const rotStep120 = (-120 * Math.PI) / 180;
+      const angleTarget = fromSlide5
+        ? f5end.angle + rotStep120
+        : rotSlide3 + 2 * rotStep120;
+      const angleFrom = fromSlide5 ? f5end.angle : 0;
+
+      const tAnim = spaceStill
+        ? 1
+        : Math.max(0, Math.min(1, (millis() - galleryAnimStartMs) / 1200));
+      const easeAnim = spaceStill ? 1 : easeInOutCubic(tAnim);
+
+      let angle;
+      let camZoom;
+      let camX;
+      let camY;
+      let screenY;
+      if (spaceStill) {
+        const aEnd = rotSlide3 + 2 * rotStep120;
+        angle = aEnd;
+        camZoom = zoomTarget;
+        const prS = phraseRotAt(aEnd);
+        camX = prS.x;
+        camY = prS.y;
+        screenY = cy;
+      } else {
+        angle = lerp(angleFrom, angleTarget, easeAnim);
+        const cam2f6 = fromSlide5
+          ? { x: f5end.camX, y: f5end.camY, zoom: f5end.camZoom, screenY: f5end.screenY }
+          : { x: targets[0].x, y: targets[0].y, zoom: zoom2, screenY: desiredSpeckCenterY };
+        const pr = phraseRotAt(angle);
+        camZoom = lerp(cam2f6.zoom, zoomTarget, easeAnim);
+        camX = lerp(cam2f6.x, pr.x, easeAnim);
+        camY = lerp(cam2f6.y, pr.y, easeAnim);
+        screenY = lerp(cam2f6.screenY, cy, easeAnim);
+      }
+
+      const anglePh = spaceStill ? rotSlide3 + 2 * rotStep120 : angleTarget;
+      const zoomPh = zoomTarget;
+      const prPh = phraseRotAt(anglePh);
+      const camXPh = prPh.x;
+      const camYPh = prPh.y;
+      const screenYPh = cy;
+      const screenToUnrotWorldPhrase = (sx, sy) => {
+        const rx = (sx - cx) / zoomPh + camXPh;
+        const ry = (sy - screenYPh) / zoomPh + camYPh;
+        const ca = Math.cos(anglePh);
+        const sa = Math.sin(anglePh);
+        const ddx = rx - graphCX;
+        const ddy = ry - graphCY;
+        const ox = ca * ddx + sa * ddy;
+        const oy = -sa * ddx + ca * ddy;
+        return { x: graphCX + ox, y: graphCY + oy };
+      };
+
+      computeExclusiveLabelLayout.fixedThetas = FIXED_LABEL_THETAS;
+      const curLayouts = computeExclusiveLabelLayout(targets, rFinal, WORDS, vennTextPx);
+
+      push();
+      translate(cx, screenY);
+      scale(camZoom);
+      translate(-camX, -camY);
+      translate(graphCX, graphCY);
+      rotate(angle);
+      translate(-graphCX, -graphCY);
+
+      for (let i = 0; i < 3; i++) {
+        const x = targets[i].x;
+        const y = targets[i].y;
+        noStroke();
+        fill(245, 120);
+        ellipse(x, y, vennD, vennD);
+        noFill();
+        stroke(120, 220);
+        strokeWeight(3 * ls);
+        strokeJoin(ROUND);
+        strokeCap(ROUND);
+        ellipse(x, y, vennD, vennD);
+      }
+
+      for (let i = 0; i < 3; i++) {
+        const x = targets[i].x;
+        const y = targets[i].y;
+        const wx = x + curLayouts[i].dx;
+        const wy = y + curLayouts[i].dy;
+        fill(0);
+        textAlign(CENTER, CENTER);
+        textSize(vennTextPx);
+        noStroke();
+        push();
+        translate(wx, wy);
+        rotate(curLayouts[i].theta);
+        text(WORDS[i], 0, 0);
+        pop();
+      }
+
+      pop();
+
+      const phraseFadeT0 = 0.64;
+      if (tAnim > phraseFadeT0) {
+        const u = Math.max(0, Math.min(1, (tAnim - phraseFadeT0) / (1 - phraseFadeT0)));
+        const phraseEase = smootherstep(u);
+        const phrases = SPECK_INSPECT_SPACE_PHRASES;
+        const baseScr = { x: cx, y: cy };
+        const padScr = Math.max(3, 4 * ls);
+        const lineLead = 1.2;
+        const blockCornersInLobe = (sizeScr, ctrX, ctrY) => {
+          textSize(sizeScr);
+          const lineStep = sizeScr * lineLead;
+          let maxTw = 0;
+          for (let i = 0; i < phrases.length; i++) maxTw = Math.max(maxTw, textWidth(phrases[i]));
+          const halfW = maxTw / 2 + padScr;
+          const halfH = (phrases.length * lineStep) / 2 + padScr;
+          const xs = [-halfW, 0, halfW, -halfW, halfW, -halfW, 0, halfW];
+          const ys = [-halfH, -halfH, -halfH, 0, 0, halfH, halfH, halfH];
+          for (let k = 0; k < xs.length; k++) {
+            const w = screenToUnrotWorldPhrase(ctrX + xs[k], ctrY + ys[k]);
+            if (!inSpeckInspectOnlyLobe(w.x, w.y)) return false;
+          }
+          return true;
+        };
+        let phraseSizeScreen = Math.min(12 * ls * zoomPh, chordHalf * 0.92 * zoomPh);
+        while (phraseSizeScreen > 2.8 * ls * zoomPh) {
+          textSize(phraseSizeScreen);
+          let maxTw = 0;
+          for (let i = 0; i < phrases.length; i++) maxTw = Math.max(maxTw, textWidth(phrases[i]));
+          if (maxTw + 2 * padScr > chordHalf * 1.85 * zoomPh) {
+            phraseSizeScreen -= 0.32 * ls * zoomPh;
+            continue;
+          }
+          if (blockCornersInLobe(phraseSizeScreen, baseScr.x, baseScr.y)) break;
+          phraseSizeScreen -= 0.32 * ls * zoomPh;
+        }
+        while (phraseSizeScreen > 2.2 * ls * zoomPh && !blockCornersInLobe(phraseSizeScreen, baseScr.x, baseScr.y)) {
+          phraseSizeScreen -= 0.25 * ls * zoomPh;
+        }
+        push();
+        resetMatrix();
+        textSize(phraseSizeScreen);
+        const lineStep = phraseSizeScreen * lineLead;
+        textLeading(lineStep);
+        textAlign(CENTER, CENTER);
+        fill(0, 255 * phraseEase);
+        noStroke();
+        const n = phrases.length;
+        const mid = (n - 1) / 2;
+        for (let pi = 0; pi < n; pi++) {
+          text(phrases[pi], baseScr.x, baseScr.y + (pi - mid) * lineStep);
+        }
+        pop();
+      }
+
+      galleryLastFrame = galleryFrame;
+      if (tAnim >= 1) noLoop();
+      return;
+    }
 
     let transitionDone = false;
-    if (galleryFrame === 4 || galleryFrame === 5) {
+    if (galleryExtended && (galleryFrame === 4 || galleryFrame === 5)) {
       const useSediment = galleryFrame === 5;
       if (galleryLastFrame !== galleryFrame) {
         galleryAnimStartMs = millis();
@@ -1405,6 +2239,11 @@ function draw() {
       return;
     } else {
       noLoop();
+    }
+
+    if (!galleryExtended && galleryFrame === 1 && typeof window !== 'undefined') {
+      window.__SPEC_FRAME4_END__ = null;
+      window.__SPEC_FRAME5_END__ = null;
     }
 
     galleryLastFrame = galleryFrame;

@@ -38,12 +38,24 @@
     }
 
     .frame-stage {
+      position: relative;
       flex: 1 1 0;
       min-height: 0;
       min-width: 0;
+      width: 100%;
+      max-width: 100%;
+      align-self: stretch;
+      overflow: hidden;
+      box-sizing: border-box;
+    }
+
+    .demo-main {
       width: 50%;
       max-width: 100%;
-      align-self: center;
+      margin: 0 auto;
+      height: 100%;
+      min-width: 0;
+      min-height: 0;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -55,35 +67,64 @@
       padding-right: max(10px, env(safe-area-inset-right, 0px));
     }
 
-    /* Row: arrows sit beside the canvas strip (LiquidFun-style controls), not the 50% column edges. */
-    .gallery-content {
-      display: flex;
-      flex-direction: row;
-      align-items: stretch;
+    .still-grid {
+      display: none;
       width: 100%;
       height: 100%;
-      min-height: 0;
-      min-width: 0;
-      gap: 4px;
+      padding: 14px;
+      gap: 10px;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-rows: repeat(2, minmax(0, 1fr));
     }
 
-    .gallery-content .demo-main {
-      flex: 1 1 auto;
-      min-width: 0;
-      min-height: 0;
+    .still-cell {
+      border: 0.5px solid var(--border);
+      background: rgba(255, 255, 255, 0.35);
+      border-radius: 10px;
       display: flex;
       align-items: center;
       justify-content: center;
       overflow: hidden;
+      min-height: 0;
+      color: var(--muted);
+      font-size: 0.82rem;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .still-cell iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
+      display: block;
+      pointer-events: none;
+      background: transparent;
+    }
+
+    .is-grid-slide .still-grid {
+      display: grid;
+      width: 100%;
+      height: 100%;
+      padding: 0;
+    }
+
+    .is-grid-slide .demo-main canvas {
+      display: none !important;
+    }
+
+    .is-grid-slide .demo-main {
+      width: 100%;
+      margin: 0;
+      padding: 0;
     }
 
     .gallery-arrow {
-      position: relative;
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
       z-index: 4;
-      flex: 0 0 44px;
       width: 44px;
       height: 44px;
-      align-self: center;
       border-radius: 50%;
       border: none;
       background: transparent;
@@ -95,6 +136,14 @@
       color: rgba(20, 20, 20, 0.5);
       transition: color 0.15s, background 0.15s;
       -webkit-tap-highlight-color: transparent;
+    }
+
+    .gallery-arrow--prev {
+      left: max(10px, env(safe-area-inset-left, 0px));
+    }
+
+    .gallery-arrow--next {
+      right: max(10px, env(safe-area-inset-right, 0px));
     }
 
     .gallery-arrow:hover {
@@ -149,16 +198,27 @@
 
     /* Hub iframe / phone: use full width so the 4:5 canvas fits `main` (was 50% → tiny Venn). */
     @media (max-width: 768px) {
-      .frame-stage {
+      .demo-main {
         width: 100%;
-        max-width: 100%;
-        align-self: stretch;
       }
     }
 
     @media (max-width: 520px) {
       .demo-toolbar { padding: 10px 12px; }
       .demo-toolbar { font-size: 0.82rem; }
+      .still-grid { padding: 10px; gap: 8px; }
+    }
+
+    @media (max-width: 768px) {
+      .still-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-rows: repeat(3, minmax(0, 1fr));
+      }
+    }
+
+    .is-locked .gallery-arrow,
+    .is-locked .demo-toolbar {
+      display: none;
     }
   </style>
 </head>
@@ -166,15 +226,34 @@
 <body>
   <div class="demo-root">
     <div class="frame-stage">
-      <div class="gallery-content">
-        <button type="button" class="gallery-arrow gallery-arrow--prev" id="galleryPrev" aria-label="Previous frame">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
-        </button>
-        <main class="demo-main"></main>
-        <button type="button" class="gallery-arrow gallery-arrow--next" id="galleryNext" aria-label="Next frame">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg>
-        </button>
-      </div>
+      <main class="demo-main">
+        <div id="stillGrid" class="still-grid" aria-label="Still frame grid">
+          <div class="still-cell" title="Frame 1">
+            <iframe title="Venn frame 1 still" src="about:blank" loading="lazy" data-src="post2-gallery.html?max=5&amp;lock=1#venn-frame-1"></iframe>
+          </div>
+          <div class="still-cell" title="Frame 2">
+            <iframe title="Venn frame 2 still" src="about:blank" loading="lazy" data-src="post2-gallery.html?max=5&amp;lock=1#venn-frame-2"></iframe>
+          </div>
+          <div class="still-cell" title="Frame 3 (zoomed speck)">
+            <iframe title="Venn frame 3 still" src="about:blank" loading="lazy" data-src="post2-gallery.html?max=5&amp;lock=1#venn-frame-3"></iframe>
+          </div>
+          <div class="still-cell" title="Frame 4 (speck ∩ spectrum)">
+            <iframe title="Venn frame 4 overlap still" src="about:blank" loading="lazy" data-src="post2-gallery.html?lock=1&amp;overlapStill=1#venn-overlap"></iframe>
+          </div>
+          <div class="still-cell" title="Frame 5 (inspect ∩ spectrum pair)">
+            <iframe title="Venn frame 5 media pair still" src="about:blank" loading="lazy" data-src="post2-gallery.html?lock=1&amp;mediaPairStill=1#venn-media-pair"></iframe>
+          </div>
+          <div class="still-cell" title="Frame 6 (speck ∩ inspect · space)">
+            <iframe title="Venn frame 6 space phrases still" src="about:blank" loading="lazy" data-src="post2-gallery.html?lock=1&amp;spacePhrasesStill=1#venn-space-phrases"></iframe>
+          </div>
+        </div>
+      </main>
+      <button type="button" class="gallery-arrow gallery-arrow--prev" id="galleryPrev" aria-label="Previous frame">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+      </button>
+      <button type="button" class="gallery-arrow gallery-arrow--next" id="galleryNext" aria-label="Next frame">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg>
+      </button>
     </div>
     <div class="demo-toolbar">
       <span id="slideTitle" class="slide-title">Venn frame</span>
@@ -183,29 +262,130 @@
   </div>
   <script>
     window.__SPEC_GALLERY__ = true;
-    window.__SPEC_GALLERY_FRAME__ = 1;
 
-    const TOTAL_FRAMES = 5;
+    const params = new URLSearchParams(location.search);
+    window.__SPEC_OVERLAP_STILL__ = params.get('overlapStill') === '1';
+    window.__SPEC_MEDIA_PAIR_STILL__ = params.get('mediaPairStill') === '1';
+    window.__SPEC_SPACE_PHRASES_STILL__ = params.get('spacePhrasesStill') === '1';
+    const EXTENDED_MODE = params.get('max') === '5';
+    window.__SPEC_GALLERY_EXTENDED__ = EXTENDED_MODE;
+    const FRAME_HASH_TO_NUM = EXTENDED_MODE
+      ? {
+          'venn-frame-1': 1,
+          'venn-frame-2': 2,
+          'venn-frame-3': 3,
+          'venn-frame-4': 4,
+          'venn-frame-5': 5,
+        }
+      : {
+          'venn-frame-1': 1,
+          'venn-frame-2': 1,
+          'venn-frame-3': 2,
+          'venn-stills': 1,
+          'venn-motion': 2,
+          'venn-overlap': 3,
+          'venn-media-pair': 4,
+          'venn-space-phrases': 5,
+        };
+    const TOTAL_FRAMES = EXTENDED_MODE ? 5 : 5;
+    // Compact: sketch 1,3,4,5,6; extended UI 1–5 maps 1:1 to sketch 1–5 (ink on 4–5).
+    window.__SPEC_GALLERY_MAX_FRAME = 6;
     const counterEl = document.getElementById('counter');
     const titleEl = document.getElementById('slideTitle');
-    const FRAME_TITLES = [
-      'Venn frame 1',
-      'Venn frame 2',
-      'Venn frame 3',
-      'Venn frame 4',
-      'Venn frame 5',
-    ];
+    let lastUiFrame = 0;
+    const FRAME_TITLES = EXTENDED_MODE
+      ? ['Venn frame 1', 'Venn frame 2', 'Venn frame 3', 'Venn frame 4', 'Venn frame 5']
+      : ['Venn still frames', 'Venn zoom motion', 'Speck ∩ spectrum', 'Inspect ∩ spectrum', 'Speck ∩ inspect · space'];
+
+    function clampFrame(n) {
+      return Math.max(1, Math.min(TOTAL_FRAMES, n | 0));
+    }
+
+    const LOCK_MODE = params.get('lock') === '1';
+
+    function readFrameFromHash() {
+      const raw = (location.hash || '').replace(/^#/, '').trim().toLowerCase();
+      if (FRAME_HASH_TO_NUM[raw] && FRAME_HASH_TO_NUM[raw] <= TOTAL_FRAMES) return FRAME_HASH_TO_NUM[raw];
+      return 1;
+    }
+
+    function setHashForFrame(f) {
+      const h = EXTENDED_MODE
+        ? `venn-frame-${f}`
+        : (f === 1 ? 'venn-stills' : f === 2 ? 'venn-motion' : f === 3 ? 'venn-overlap' : f === 4 ? 'venn-media-pair' : 'venn-space-phrases');
+      if (location.hash !== `#${h}`) {
+        history.replaceState(null, '', `${location.pathname}${location.search}#${h}`);
+      }
+    }
+
+    function syncSketchFrame(uiFrame) {
+      if (EXTENDED_MODE) {
+        window.__SPEC_GALLERY_FRAME__ = uiFrame;
+      } else {
+        // Compact: 1→1, 2→3, 3→4, 4→5, 5→6.
+        window.__SPEC_GALLERY_FRAME__ = uiFrame === 1 ? 1 : uiFrame === 2 ? 3 : uiFrame === 3 ? 4 : uiFrame === 4 ? 5 : 6;
+      }
+    }
+
+    function applyGridState(uiFrame) {
+      document.body.classList.toggle('is-grid-slide', !EXTENDED_MODE && uiFrame === 1);
+    }
+
+    /** Load still-grid iframes only on slide 1, staggered (avoids 6× p5+Matter+sketch at once). */
+    let stillGridEmbedsStarted = false;
+    function scheduleStillGridEmbeds() {
+      if (EXTENDED_MODE || stillGridEmbedsStarted) return;
+      const grid = document.getElementById('stillGrid');
+      if (!grid) return;
+      const frames = grid.querySelectorAll('iframe[data-src]');
+      if (!frames.length) return;
+      stillGridEmbedsStarted = true;
+      let i = 0;
+      const staggerMs = 55;
+      const step = () => {
+        if (i >= frames.length) return;
+        const el = frames[i++];
+        const url = el.getAttribute('data-src');
+        if (url) {
+          el.src = url;
+          el.removeAttribute('data-src');
+        }
+        setTimeout(step, staggerMs);
+      };
+      requestAnimationFrame(step);
+    }
 
     function updateUI() {
-      const f = window.__SPEC_GALLERY_FRAME__ || 1;
-      counterEl.textContent = `${f} / ${TOTAL_FRAMES}`;
-      if (titleEl) titleEl.textContent = FRAME_TITLES[f - 1] || 'Venn frame';
+      const uiFrame = window.__SPEC_UI_FRAME__ || 1;
+      counterEl.textContent = `${uiFrame} / ${TOTAL_FRAMES}`;
+      if (titleEl) titleEl.textContent = FRAME_TITLES[uiFrame - 1] || 'Venn frame';
+      applyGridState(uiFrame);
+      syncSketchFrame(uiFrame);
+      if (!EXTENDED_MODE && uiFrame === 1) {
+        scheduleStillGridEmbeds();
+      }
+      if (!EXTENDED_MODE && uiFrame === 2 && lastUiFrame !== 2) {
+        window.__SPEC_FORCE_MOTION_RESTART__ = true;
+        if (typeof window.loop === 'function') window.loop();
+      }
+      if (!EXTENDED_MODE && uiFrame === 3 && lastUiFrame !== 3) {
+        if (typeof window.loop === 'function') window.loop();
+      }
+      if (!EXTENDED_MODE && uiFrame === 4 && lastUiFrame !== 4) {
+        if (typeof window.loop === 'function') window.loop();
+      }
+      if (!EXTENDED_MODE && uiFrame === 5 && lastUiFrame !== 5) {
+        if (typeof window.loop === 'function') window.loop();
+      }
+      setHashForFrame(uiFrame);
+      lastUiFrame = uiFrame;
     }
 
     function gotoFrame(delta) {
-      const cur = window.__SPEC_GALLERY_FRAME__ || 1;
-      const f = Math.max(1, Math.min(TOTAL_FRAMES, cur + delta));
-      window.__SPEC_GALLERY_FRAME__ = f;
+      if (LOCK_MODE) return;
+      const cur = window.__SPEC_UI_FRAME__ || 1;
+      const f = clampFrame(cur + delta);
+      window.__SPEC_UI_FRAME__ = f;
       updateUI();
       if (typeof window.redraw === 'function') window.redraw();
     }
@@ -213,6 +393,7 @@
     document.getElementById('galleryPrev').addEventListener('click', () => gotoFrame(-1));
     document.getElementById('galleryNext').addEventListener('click', () => gotoFrame(1));
     window.addEventListener('keydown', (e) => {
+      if (LOCK_MODE) return;
       if (e.key === 'ArrowLeft') {
         e.preventDefault();
         gotoFrame(-1);
@@ -221,6 +402,19 @@
         gotoFrame(1);
       }
     });
+
+    window.addEventListener('hashchange', () => {
+      if (LOCK_MODE) return;
+      const f = readFrameFromHash();
+      if (f !== (window.__SPEC_UI_FRAME__ || 1)) {
+        window.__SPEC_UI_FRAME__ = f;
+        updateUI();
+        if (typeof window.redraw === 'function') window.redraw();
+      }
+    });
+
+    window.__SPEC_UI_FRAME__ = readFrameFromHash();
+    if (LOCK_MODE) document.body.classList.add('is-locked');
     updateUI();
   </script>
   <script src="../js/sketch.js"></script>

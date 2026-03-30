@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>post1.2 — 4 · speck dev process</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../css/galleryShell.css" />
+</head>
+<body>
+  <div class="demo-root">
+    <div class="frame-stage">
+      <iframe id="demoFrame" title="post1.2 hub item 4"></iframe>
+      <button type="button" class="gallery-arrow gallery-arrow--prev" id="arrowPrev" aria-label="Previous slide">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+      </button>
+      <button type="button" class="gallery-arrow gallery-arrow--next" id="arrowNext" aria-label="Next slide">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg>
+      </button>
+    </div>
+    <div class="demo-toolbar">
+      <span class="slide-title" id="slideTitle"></span>
+      <span class="slide-idx" id="slideIdx"></span>
+    </div>
+  </div>
+  <script src="../js/galleryShell.js"></script>
+  <script>
+    initSpecGallery({
+      slides: [
+        {
+          src: 'liquidfun-phases/phase-4-speck-word.html#post12-3',
+          hash: 'speck-dev-process',
+          title: 'Speck dev process',
+        },
+      ],
+    });
+  </script>
+</body>
+</html>
