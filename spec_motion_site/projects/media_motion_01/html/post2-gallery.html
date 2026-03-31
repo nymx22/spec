@@ -67,14 +67,38 @@
       padding-right: max(10px, env(safe-area-inset-right, 0px));
     }
 
-    .still-grid {
+    .still-sections {
       display: none;
       width: 100%;
       height: 100%;
+      box-sizing: border-box;
+      overflow: auto;
       padding: 14px;
+      gap: 14px;
+      align-content: start;
+    }
+
+    .still-section {
+      display: grid;
+      grid-template-rows: auto 1fr;
+      gap: 8px;
+      min-height: 0;
+    }
+
+    .still-section-title {
+      font-size: 0.76rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .still-grid {
+      display: grid;
+      width: 100%;
+      min-height: 0;
       gap: 10px;
       grid-template-columns: repeat(3, minmax(0, 1fr));
-      grid-template-rows: repeat(2, minmax(0, 1fr));
+      grid-template-rows: repeat(2, minmax(120px, 1fr));
     }
 
     .still-cell {
@@ -101,11 +125,12 @@
       background: transparent;
     }
 
-    .is-grid-slide .still-grid {
+    .is-grid-slide .still-sections {
       display: grid;
       width: 100%;
       height: 100%;
-      padding: 0;
+      padding: 14px;
+      grid-auto-rows: minmax(0, auto);
     }
 
     .is-grid-slide .demo-main canvas {
@@ -206,13 +231,14 @@
     @media (max-width: 520px) {
       .demo-toolbar { padding: 10px 12px; }
       .demo-toolbar { font-size: 0.82rem; }
-      .still-grid { padding: 10px; gap: 8px; }
+      .still-sections { padding: 10px; gap: 10px; }
+      .still-grid { gap: 8px; }
     }
 
     @media (max-width: 768px) {
       .still-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
-        grid-template-rows: repeat(3, minmax(0, 1fr));
+        grid-template-rows: repeat(3, minmax(110px, 1fr));
       }
     }
 
@@ -227,25 +253,53 @@
   <div class="demo-root">
     <div class="frame-stage">
       <main class="demo-main">
-        <div id="stillGrid" class="still-grid" aria-label="Still frame grid">
-          <div class="still-cell" title="Frame 1">
-            <iframe title="Venn frame 1 still" src="about:blank" loading="lazy" data-src="post2-gallery.html?max=5&amp;lock=1#venn-frame-1"></iframe>
-          </div>
-          <div class="still-cell" title="Frame 2">
-            <iframe title="Venn frame 2 still" src="about:blank" loading="lazy" data-src="post2-gallery.html?max=5&amp;lock=1#venn-frame-2"></iframe>
-          </div>
-          <div class="still-cell" title="Frame 3 (zoomed speck)">
-            <iframe title="Venn frame 3 still" src="about:blank" loading="lazy" data-src="post2-gallery.html?max=5&amp;lock=1#venn-frame-3"></iframe>
-          </div>
-          <div class="still-cell" title="Frame 4 (speck ∩ spectrum)">
-            <iframe title="Venn frame 4 overlap still" src="about:blank" loading="lazy" data-src="post2-gallery.html?lock=1&amp;overlapStill=1#venn-overlap"></iframe>
-          </div>
-          <div class="still-cell" title="Frame 5 (inspect ∩ spectrum pair)">
-            <iframe title="Venn frame 5 media pair still" src="about:blank" loading="lazy" data-src="post2-gallery.html?lock=1&amp;mediaPairStill=1#venn-media-pair"></iframe>
-          </div>
-          <div class="still-cell" title="Frame 6 (speck ∩ inspect · space)">
-            <iframe title="Venn frame 6 space phrases still" src="about:blank" loading="lazy" data-src="post2-gallery.html?lock=1&amp;spacePhrasesStill=1#venn-space-phrases"></iframe>
-          </div>
+        <div id="stillSections" class="still-sections" aria-label="Still image sections">
+          <section class="still-section" aria-label="Still images grid 1">
+            <div class="still-section-title">Still images 1 of 2</div>
+            <div class="still-grid">
+              <div class="still-cell" title="Frame 1">
+                <iframe title="Venn frame 1 still" src="about:blank" loading="lazy" data-src="post2-gallery.html?max=5&amp;lock=1#venn-frame-1"></iframe>
+              </div>
+              <div class="still-cell" title="Frame 2">
+                <iframe title="Venn frame 2 still" src="about:blank" loading="lazy" data-src="post2-gallery.html?max=5&amp;lock=1#venn-frame-2"></iframe>
+              </div>
+              <div class="still-cell" title="Frame 3 (zoomed speck)">
+                <iframe title="Venn frame 3 still" src="about:blank" loading="lazy" data-src="post2-gallery.html?max=5&amp;lock=1#venn-frame-3"></iframe>
+              </div>
+              <div class="still-cell" title="Frame 4 (speck ∩ spectrum)">
+                <iframe title="Venn frame 4 overlap still" src="about:blank" loading="lazy" data-src="post2-gallery.html?lock=1&amp;overlapStill=1#venn-overlap"></iframe>
+              </div>
+              <div class="still-cell" title="Frame 5 (inspect ∩ spectrum pair)">
+                <iframe title="Venn frame 5 media pair still" src="about:blank" loading="lazy" data-src="post2-gallery.html?lock=1&amp;mediaPairStill=1#venn-media-pair"></iframe>
+              </div>
+              <div class="still-cell" title="Frame 6 (speck ∩ inspect · space)">
+                <iframe title="Venn frame 6 space phrases still" src="about:blank" loading="lazy" data-src="post2-gallery.html?lock=1&amp;spacePhrasesStill=1#venn-space-phrases"></iframe>
+              </div>
+            </div>
+          </section>
+          <section class="still-section" aria-label="Still images grid 2">
+            <div class="still-section-title">Still images 2 of 2</div>
+            <div class="still-grid">
+              <div class="still-cell" title="Frame 7">
+                <iframe title="Venn frame 1 still alt" src="about:blank" loading="lazy" data-src="post2-gallery.html?max=5&amp;lock=1#venn-frame-1"></iframe>
+              </div>
+              <div class="still-cell" title="Frame 8">
+                <iframe title="Venn frame 2 still alt" src="about:blank" loading="lazy" data-src="post2-gallery.html?max=5&amp;lock=1#venn-frame-2"></iframe>
+              </div>
+              <div class="still-cell" title="Frame 9">
+                <iframe title="Venn frame 3 still alt" src="about:blank" loading="lazy" data-src="post2-gallery.html?max=5&amp;lock=1#venn-frame-3"></iframe>
+              </div>
+              <div class="still-cell" title="Frame 10">
+                <iframe title="Venn frame 4 overlap still alt" src="about:blank" loading="lazy" data-src="post2-gallery.html?lock=1&amp;overlapStill=1#venn-overlap"></iframe>
+              </div>
+              <div class="still-cell" title="Frame 11">
+                <iframe title="Venn frame 5 media pair still alt" src="about:blank" loading="lazy" data-src="post2-gallery.html?lock=1&amp;mediaPairStill=1#venn-media-pair"></iframe>
+              </div>
+              <div class="still-cell" title="Frame 12">
+                <iframe title="Venn frame 6 space phrases still alt" src="about:blank" loading="lazy" data-src="post2-gallery.html?lock=1&amp;spacePhrasesStill=1#venn-space-phrases"></iframe>
+              </div>
+            </div>
+          </section>
         </div>
       </main>
       <button type="button" class="gallery-arrow gallery-arrow--prev" id="galleryPrev" aria-label="Previous frame">
@@ -265,8 +319,15 @@
 
     const params = new URLSearchParams(location.search);
     window.__SPEC_OVERLAP_STILL__ = params.get('overlapStill') === '1';
+    window.__SPEC_SPECTRUM_STILL__ = params.get('spectrumStill') === '1';
+    window.__SPEC_INSPECT_STILL__ = params.get('inspectStill') === '1';
     window.__SPEC_MEDIA_PAIR_STILL__ = params.get('mediaPairStill') === '1';
     window.__SPEC_SPACE_PHRASES_STILL__ = params.get('spacePhrasesStill') === '1';
+    window.__SPEC_STILL03__ = params.get('still03') === '1';
+    window.__SPEC_ALL_PHRASES_STILL__ = params.get('allPhrasesStill') === '1';
+    window.__SPEC_ALL_OVERLAP_TEXTS_STILL__ = params.get('allOverlapTextsStill') === '1';
+    window.__SPEC_LOGO_STILL__ = params.get('logoStill') === '1';
+    window.__SPEC_MOTION_SEGMENT__ = params.get('motionSegment') || '';
     const EXTENDED_MODE = params.get('max') === '5';
     window.__SPEC_GALLERY_EXTENDED__ = EXTENDED_MODE;
     const FRAME_HASH_TO_NUM = EXTENDED_MODE
@@ -295,7 +356,7 @@
     let lastUiFrame = 0;
     const FRAME_TITLES = EXTENDED_MODE
       ? ['Venn frame 1', 'Venn frame 2', 'Venn frame 3', 'Venn frame 4', 'Venn frame 5']
-      : ['Venn still frames', 'Venn zoom motion', 'Speck ∩ spectrum', 'Inspect ∩ spectrum', 'Speck ∩ inspect · space'];
+      : ['Still images', 'Live motions · zoom motion', 'Live motions · speck ∩ spectrum', 'Live motions · inspect ∩ spectrum', 'Live motions · speck ∩ inspect · space'];
 
     function clampFrame(n) {
       return Math.max(1, Math.min(TOTAL_FRAMES, n | 0));
@@ -335,9 +396,9 @@
     let stillGridEmbedsStarted = false;
     function scheduleStillGridEmbeds() {
       if (EXTENDED_MODE || stillGridEmbedsStarted) return;
-      const grid = document.getElementById('stillGrid');
-      if (!grid) return;
-      const frames = grid.querySelectorAll('iframe[data-src]');
+      const gridRoot = document.getElementById('stillSections');
+      if (!gridRoot) return;
+      const frames = gridRoot.querySelectorAll('iframe[data-src]');
       if (!frames.length) return;
       stillGridEmbedsStarted = true;
       let i = 0;

@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- Superseded for hub item 4 slide 2 by liquidfun-phases/phase-4-speck-word.html#post12-5 (LiquidFun + same letter rain). Kept as a lightweight standalone. -->
+  <title>Speck dev — letters (no sim)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    @font-face {
+      font-family: "genwanlatin";
+      font-weight: 400;
+      font-style: normal;
+      src: url("https://freight.cargo.site/m/K2650652186881166999210129014453/genwan_latin_092725_1-r-webfont.woff2") format("woff2");
+    }
+    :root {
+      --bg: #e4e4e4;
+      --ink: #141414;
+      --border: rgba(0, 0, 0, 0.12);
+    }
+    html, body {
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: var(--bg);
+      font-family: "Space Grotesk", sans-serif;
+    }
+    .demo-root {
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+    .demo-main {
+      flex: 1 1 0;
+      min-height: 0;
+      min-width: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .demo-main canvas {
+      display: block;
+      width: 100% !important;
+      height: 100% !important;
+      object-fit: contain;
+      object-position: center;
+    }
+  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.8.0/p5.js"></script>
+  <script src="../js/canvasFit4x5.js"></script>
+</head>
+<body>
+  <div class="demo-root">
+    <main class="demo-main"></main>
+  </div>
+  <script>
+      var VENN_REF = {
+        layoutRefW: 600,
+        offset: 55,
+        radius: 85,
+        scale: 1.7,
+      };
+      var VENN_SPREAD_MULT = 1.35;
+      var FONT = 'genwanlatin';
+      var LETTER_SOURCE = 'speck';
+      var GRAVITY = 0.30;
+      var AIR = 0.996;
+      var BOUNCE = 0.60;
+      var MAX_LETTERS = 160;
+      var EMIT_EVERY_MS = 75;
+      var RESET_MS = 16000;
+
+      var layout = null;
+      var letters = [];
+      var letterGfx = null;
+      /** Same as `phase-4-speck-word.html` PAGE3 glyph cap: `24 * (width / 600)` (Venn label px). */
+      var textPx = 24;
+      var lastEmitMs = 0;
+      var cycleStartMs = 0;
+
+      function ensureLetterGfx() {
+        if (!layout) return;
+        if (!letterGfx || letterGfx.width !== width || letterGfx.height !== height) {
+          letterGfx = createGraphics(width, height);
+          letterGfx.pixelDensity(typeof pixelDensity === 'function' ? pixelDensity() : 1);
+        }
+      }
+
+      function makeLayout() {
+        var ls = width / VENN_REF.layoutRefW;
+        var cy = height / 2;
+        var cx = width / 2;
+        var off = VENN_REF.offset * ls * VENN_SPREAD_MULT;
+        var targets = [
+          { x: cx, y: cy - off },
+          { x: cx - off * 0.9, y: cy + off * 0.6 },
+          { x: cx + off * 0.9, y: cy + off * 0.6 },
+        ];
+        var r = VENN_REF.radius * VENN_REF.scale * ls;
+        layout = { targets: targets, r: r, ls: ls };
+        textPx = (24 * width) / VENN_REF.layoutRefW;
+      }
+
+      function pointInIsolatedSpeckRegion(px, py) {
+        var t = layout.targets[0];
+        var l = layout.targets[1];
+        var rr = layout.targets[2];
+        var r2 = layout.r * layout.r;
+        var dt = (px - t.x) * (px - t.x) + (py - t.y) * (py - t.y);
+        if (dt > r2) return false;
+        var dl = (px - l.x) * (px - l.x) + (py - l.y) * (py - l.y);
+        if (dl < r2) return false;
+        var dr = (px - rr.x) * (px - rr.x) + (py - rr.y) * (py - rr.y);
+        if (dr < r2) return false;
+        return true;
+      }
+
+      function keepInsideSpeckRegion(p) {
+        var t = layout.targets[0];
+        var l = layout.targets[1];
+        var rr = layout.targets[2];
+        var m = Math.max(p.w, p.h) * 0.32;
+
+        var dx = p.x - t.x;
+        var dy = p.y - t.y;
+        var d = Math.hypot(dx, dy) || 1;
+        var maxTop = layout.r - m;
+        if (d > maxTop) {
+          var nx = dx / d;
+          var ny = dy / d;
+          p.x = t.x + nx * maxTop;
+          p.y = t.y + ny * maxTop;
+          var vn = p.vx * nx + p.vy * ny;
+          if (vn > 0) {
+            p.vx -= (1 + BOUNCE) * vn * nx;
+            p.vy -= (1 + BOUNCE) * vn * ny;
+          }
+        }
+
+        var maxBottom = layout.r + m;
+        function pushOut(c) {
+          var ddx = p.x - c.x;
+          var ddy = p.y - c.y;
+          var dd = Math.hypot(ddx, ddy) || 1;
+          if (dd < maxBottom) {
+            var nnx = ddx / dd;
+            var nny = ddy / dd;
+            p.x = c.x + nnx * maxBottom;
+            p.y = c.y + nny * maxBottom;
+            var vnn = p.vx * nnx + p.vy * nny;
+            if (vnn < 0) {
+              p.vx -= (1 + BOUNCE) * vnn * nnx;
+              p.vy -= (1 + BOUNCE) * vnn * nny;
+            }
+          }
+        }
+        pushOut(l);
+        pushOut(rr);
+      }
+
+      function randomSpeckChar() {
+        var i = Math.floor(Math.random() * LETTER_SOURCE.length);
+        return LETTER_SOURCE.charAt(i);
+      }
+
+      function emitLetter() {
+        if (!layout) return;
+        if (letters.length >= MAX_LETTERS) letters.shift();
+        var top = layout.targets[0];
+        var x = top.x + random(-layout.r * 0.62, layout.r * 0.62);
+        var y = top.y - layout.r * 0.92 + random(-10, 4);
+        textFont(FONT);
+        textAlign(CENTER, CENTER);
+        textSize(textPx);
+        var ch = randomSpeckChar();
+        var p = {
+          ch: ch,
+          x: x,
+          y: y,
+          vx: random(-0.55, 0.55),
+          vy: random(-0.2, 0.25),
+          spin: random(-0.02, 0.02),
+          rot: random(-0.12, 0.12),
+        };
+        p.w = textWidth(ch);
+        p.h = textPx * 0.95;
+        keepInsideSpeckRegion(p);
+        if (pointInIsolatedSpeckRegion(p.x, p.y)) letters.push(p);
+      }
+
+      function resetCycle() {
+        letters = [];
+        cycleStartMs = millis();
+        lastEmitMs = cycleStartMs;
+      }
+
+      function updateLetters() {
+        var now = millis();
+        while (now - lastEmitMs >= EMIT_EVERY_MS) {
+          emitLetter();
+          lastEmitMs += EMIT_EVERY_MS;
+        }
+        for (var i = 0; i < letters.length; i++) {
+          var p = letters[i];
+          p.vy += GRAVITY;
+          p.vx *= AIR;
+          p.vy *= AIR;
+          p.x += p.vx;
+          p.y += p.vy;
+          p.rot += p.spin;
+          keepInsideSpeckRegion(p);
+        }
+      }
+
+      function drawVenn() {
+        var d = layout.r * 2;
+        var t = layout.targets;
+        noStroke();
+        fill(245, 120);
+        ellipse(t[1].x, t[1].y, d, d);
+        ellipse(t[2].x, t[2].y, d, d);
+        ellipse(t[0].x, t[0].y, d, d);
+        noFill();
+        stroke(120, 220);
+        strokeWeight(3 * layout.ls);
+        strokeJoin(ROUND);
+        strokeCap(ROUND);
+        ellipse(t[1].x, t[1].y, d, d);
+        ellipse(t[2].x, t[2].y, d, d);
+        ellipse(t[0].x, t[0].y, d, d);
+      }
+
+      function setup() {
+        var dim = window.specCanvas4x5 ? specCanvas4x5.compute() : { w: 480, h: 600 };
+        var cnv = createCanvas(dim.w, dim.h);
+        if (window.specCanvas4x5) specCanvas4x5.applyPixelDensity(window);
+        var mainEl = document.querySelector('main');
+        if (mainEl && cnv && cnv.parent) cnv.parent(mainEl);
+        makeLayout();
+        letterGfx = createGraphics(dim.w, dim.h);
+        letterGfx.pixelDensity(typeof pixelDensity === 'function' ? pixelDensity() : 1);
+        resetCycle();
+        if (window.specCanvas4x5 && specCanvas4x5.installMainResizeDispatch) {
+          specCanvas4x5.installMainResizeDispatch();
+        }
+      }
+
+      function windowResized() {
+        if (!window.specCanvas4x5) return;
+        var dim = specCanvas4x5.compute();
+        resizeCanvas(dim.w, dim.h);
+        specCanvas4x5.applyPixelDensity(window);
+        makeLayout();
+        letterGfx = createGraphics(dim.w, dim.h);
+        letterGfx.pixelDensity(typeof pixelDensity === 'function' ? pixelDensity() : 1);
+        resetCycle();
+      }
+
+      function draw() {
+        background(228);
+        makeLayout();
+        updateLetters();
+        drawVenn();
+        ensureLetterGfx();
+        if (!letterGfx) return;
+        var T = layout.targets[0];
+        var L = layout.targets[1];
+        var R = layout.targets[2];
+        var clipR = layout.r * 0.995;
+        var d = layout.r * 2;
+        letterGfx.clear();
+        letterGfx.push();
+        letterGfx.drawingContext.beginPath();
+        letterGfx.drawingContext.arc(T.x, T.y, clipR, 0, Math.PI * 2);
+        letterGfx.drawingContext.clip();
+        letterGfx.textFont(FONT);
+        letterGfx.textAlign(CENTER, CENTER);
+        letterGfx.textSize(textPx);
+        letterGfx.noStroke();
+        letterGfx.fill(0);
+        for (var i = 0; i < letters.length; i++) {
+          var p = letters[i];
+          letterGfx.push();
+          letterGfx.translate(p.x, p.y);
+          letterGfx.rotate(p.rot);
+          letterGfx.text(p.ch, 0, 0);
+          letterGfx.pop();
+        }
+        letterGfx.pop();
+        letterGfx.drawingContext.save();
+        letterGfx.drawingContext.globalCompositeOperation = 'destination-out';
+        letterGfx.fill(255);
+        letterGfx.noStroke();
+        letterGfx.ellipse(L.x, L.y, d, d);
+        letterGfx.ellipse(R.x, R.y, d, d);
+        letterGfx.drawingContext.restore();
+        image(letterGfx, 0, 0);
+        if (millis() - cycleStartMs > RESET_MS) {
+          resetCycle();
+        }
+      }
+  </script>
+</body>
+</html>

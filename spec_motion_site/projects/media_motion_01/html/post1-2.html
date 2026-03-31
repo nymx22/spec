@@ -311,7 +311,7 @@
         <span class="back-link-arrow">←</span> media_motion_01
       </a>
       <div class="sidebar-title">post1.2</div>
-      <div class="nav-count">0 · 1 · 2 · 3 · 4</div>
+      <div class="nav-count">0 · 1 · 1.5 · 2 · 3 · 4</div>
     </div>
 
     <nav class="nav-list">
@@ -329,14 +329,25 @@
 
       <a class="nav-item active"
          href="#gallery"
-         data-src="post2-gallery.html"
-         data-name="1. venn diagram live motion"
+         data-src="post2-gallery-stills.html"
+         data-name="1. venn diagram still images"
          data-slug="gallery"
          data-default="true">
         <div class="nav-item-top">
-          <span class="nav-num">1. venn diagram live motion</span>
+          <span class="nav-num">1. venn diagram still images</span>
         </div>
-        <span class="nav-desc">motion frames design</span>
+        <span class="nav-desc">14-slide still gallery (2 grid slides + 12 still slides)</span>
+      </a>
+
+      <a class="nav-item"
+         href="#gallery-1-5"
+         data-src="post2-gallery-1-5.html"
+         data-name="1.5. venn diagram live motions"
+         data-slug="gallery-1-5">
+        <div class="nav-item-top">
+          <span class="nav-num">1.5. venn diagram live motions</span>
+        </div>
+        <span class="nav-desc">10 live transitions: Still 01→02 through Still 10→11</span>
       </a>
 
       <a class="nav-item"
@@ -390,11 +401,11 @@
       <div class="preview-bar-text">
         <span class="preview-label">post1.2</span>
         <span class="preview-sep">/</span>
-        <span class="preview-name" id="previewName">1 — p5.js matter.js</span>
+        <span class="preview-name" id="previewName">1 — venn diagram still images</span>
       </div>
     </div>
     <iframe id="previewFrame"
-            src="post2-gallery.html"
+            src="post2-gallery-stills.html"
             title="post1.2 preview">
     </iframe>
   </div>
@@ -412,8 +423,9 @@
 
     var mq = window.matchMedia('(max-width: 768px)');
 
-    /** Short links: #0 #doc #md (this doc), #1 #2 #3 #4. Item 2 deep: #venn-frame-4/#venn-frame-5; item 3 deep: #liquidfun-world/#glyph-break/#speck-word; item 4 deep: #speck-dev-process. */
+    /** Short links: #0 #doc #md (this doc), #1 #1.5 #2 #3 #4. Item 1.5 deep: #still-01-02 ... #still-10-11. Item 2 deep: #venn-frame-4/#venn-frame-5; item 3 deep: #liquidfun-world/#glyph-break/#speck-word; item 4 deep: #speck-dev-process / #speck-dev-frame5. */
     var SPECK_DESIGN_SLUG = 'speck-design-ideas';
+    var GALLERY_15_SLUG = 'gallery-1-5';
     var SPECK_TESTINGS_SLUG = 'speck-testings';
     var SPECK_DEV_SLUG = 'speck-dev-process';
     var SLUG_ALIASES = {
@@ -422,8 +434,12 @@
       md: 'motion-post-1-2-doc',
       motion_post_1_2: 'motion-post-1-2-doc',
       '1': 'gallery',
+      '1.5': 'gallery-1-5',
       p5: 'gallery',
       matter: 'gallery',
+      motion: 'gallery-1-5',
+      motions: 'gallery-1-5',
+      live: 'gallery-1-5',
       '2': 'speck-design-ideas',
       design: 'speck-design-ideas',
       '3': 'speck-testings',
@@ -434,6 +450,7 @@
       dev: 'speck-dev-process',
       process: 'speck-dev-process',
       speckdev: 'speck-dev-process',
+      frame5: 'speck-dev-frame5',
       world: 'liquidfun-world',
       liquid: 'liquidfun-world',
       glyph: 'glyph-break',
@@ -445,12 +462,16 @@
       return s === 'venn-frame-4' || s === 'venn-frame-5';
     }
 
+    function isGallery15Subslug(s) {
+      return /^still-\d{2}-\d{2}$/.test(s);
+    }
+
     function isSpeckTestingSubslug(s) {
       return s === 'liquidfun-world' || s === 'glyph-break' || s === 'speck-word';
     }
 
     function isSpeckDevSubslug(s) {
-      return s === 'speck-dev-process';
+      return s === 'speck-dev-process' || s === 'speck-dev-frame5';
     }
 
     function canonicalSlug(raw) {
@@ -465,6 +486,11 @@
       if (slug === SPECK_DESIGN_SLUG || isSpeckDesignSubslug(slug)) {
         for (var j = 0; j < items.length; j++) {
           if (items[j].getAttribute('data-slug') === SPECK_DESIGN_SLUG) return items[j];
+        }
+      }
+      if (slug === GALLERY_15_SLUG || isGallery15Subslug(slug)) {
+        for (var g = 0; g < items.length; g++) {
+          if (items[g].getAttribute('data-slug') === GALLERY_15_SLUG) return items[g];
         }
       }
       if (slug === SPECK_TESTINGS_SLUG || isSpeckTestingSubslug(slug)) {
@@ -509,6 +535,13 @@
         else if (c === SPECK_TESTINGS_SLUG) sub3 = 'liquidfun-world';
         var base3 = src.split('#')[0];
         src = base3 + '#' + sub3;
+      }
+      if (item.getAttribute('data-slug') === GALLERY_15_SLUG) {
+        var sub15 = 'still-01-02';
+        if (isGallery15Subslug(c)) sub15 = c;
+        else if (c === GALLERY_15_SLUG) sub15 = 'still-01-02';
+        var base15 = src.split('#')[0];
+        src = base15 + '#' + sub15;
       }
       if (item.getAttribute('data-slug') === SPECK_DEV_SLUG) {
         var sub4 = 'speck-dev-process';

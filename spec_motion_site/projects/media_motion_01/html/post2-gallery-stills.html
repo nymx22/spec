@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>post1.2 — 1 · still images</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../css/galleryShell.css" />
+</head>
+<body>
+  <div class="demo-root">
+    <div class="frame-stage">
+      <iframe id="demoFrame" title="post1.2 still-images gallery"></iframe>
+      <button type="button" class="gallery-arrow gallery-arrow--prev" id="arrowPrev" aria-label="Previous slide">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+      </button>
+      <button type="button" class="gallery-arrow gallery-arrow--next" id="arrowNext" aria-label="Next slide">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg>
+      </button>
+    </div>
+    <div class="demo-toolbar">
+      <span class="slide-title" id="slideTitle"></span>
+      <span class="slide-idx" id="slideIdx"></span>
+    </div>
+  </div>
+  <script src="../js/galleryShell.js"></script>
+  <script>
+    initSpecGallery({
+      slides: [
+        { src: 'post2-stills-grid-1.html', hash: 'still-grid-1', title: 'Still images · grid 1 (2×3)' },
+        { src: 'post2-stills-grid-2.html', hash: 'still-grid-2', title: 'Still images · grid 2 (2×3)' },
+        { src: 'post2-gallery.html?max=5&lock=1#venn-frame-1', hash: 'still-01', title: 'Still 01' },
+        { src: 'post2-gallery.html?max=5&lock=1#venn-frame-2', hash: 'still-02', title: 'Still 02' },
+        { src: 'post2-gallery.html?max=5&lock=1&still03=1#venn-frame-3', hash: 'still-03', title: 'Still 03' },
+        { src: 'post2-gallery.html?lock=1&overlapStill=1#venn-overlap', hash: 'still-04', title: 'Still 04' },
+        { src: 'post2-gallery.html?lock=1&spectrumStill=1#venn-overlap', hash: 'still-05', title: 'Still 05' },
+        { src: 'post2-gallery.html?lock=1&mediaPairStill=1#venn-media-pair', hash: 'still-06', title: 'Still 06' },
+        { src: 'post2-gallery.html?lock=1&inspectStill=1#venn-media-pair', hash: 'still-07', title: 'Still 07' },
+        { src: 'post2-gallery.html?lock=1&spacePhrasesStill=1#venn-space-phrases', hash: 'still-08', title: 'Still 08' },
+        { src: 'post2-gallery.html?max=5&lock=1&allPhrasesStill=1#venn-frame-2', hash: 'still-09', title: 'Still 09' },
+        { src: 'post2-gallery.html?max=5&lock=1&allOverlapTextsStill=1#venn-frame-2', hash: 'still-10', title: 'Still 10' },
+        { src: 'post2-gallery.html?max=5&lock=1&allPhrasesStill=1&logoStill=1#venn-frame-2', hash: 'still-11', title: 'Still 11' },
+      ],
+    });
+  </script>
+</body>
+</html>
