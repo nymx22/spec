@@ -212,7 +212,7 @@ function draw() {
 
   // Square outline on top
   noFill();
-  stroke(120, 220);
+  stroke(0, 220);
   strokeWeight(3);
   rect(sq.x, sq.y, sq.s, sq.s);
 

@@ -270,10 +270,10 @@ function draw() {
     const x = vennTargets[i].x;
     const y = vennTargets[i].y;
     noStroke();
-    fill(245, 120);
+    noFill();
     ellipse(x, y, vennD, vennD);
     noFill();
-    stroke(120, 220);
+    stroke(0, 220);
     strokeWeight(3 * ls);
     strokeJoin(ROUND);
     strokeCap(ROUND);

@@ -30,7 +30,7 @@ function windowResized() {
 }
 
 function draw() {
-  background(228);
+  background(255);
   if (!window.SpecSpeckLiquid) return;
   var dt = typeof deltaTime !== 'undefined' ? deltaTime : 16;
   SpecSpeckLiquid.step(dt);
