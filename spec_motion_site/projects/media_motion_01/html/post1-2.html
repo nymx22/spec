@@ -353,12 +353,12 @@
       <a class="nav-item"
          href="#speck-design-ideas"
          data-src="post1-2-gallery-2.html"
-         data-name="2. 'speck' design ideas"
+         data-name="2. design ideas"
          data-slug="speck-design-ideas">
         <div class="nav-item-top">
-          <span class="nav-num">2. speck design ideas</span>
+          <span class="nav-num">2. design ideas</span>
         </div>
-        <span class="nav-desc">Venn diagram slides 4 and 5</span>
+        <span class="nav-desc">Still 02→03 … 07→08 live motions (as 1.5 slides 2–7), then Venn frames 4–5</span>
       </a>
 
       <a class="nav-item"
@@ -423,7 +423,7 @@
 
     var mq = window.matchMedia('(max-width: 768px)');
 
-    /** Short links: #0 #doc #md (this doc), #1 #1.5 #2 #3 #4. Item 1.5 deep: #still-01-02 ... #still-10-11. Item 2 deep: #venn-frame-4/#venn-frame-5; item 3 deep: #liquidfun-world/#glyph-break/#speck-word; item 4 deep: #speck-dev-process / #speck-dev-frame5. */
+    /** Short links: #0 #doc #md (this doc), #1 #1.5 #2 #3 #4. Item 1.5 deep: #still-01-02 ... #still-10-11. Item 2 deep: #live-02-03 … #live-07-08 (same motions as 1.5 slides 2–7), #venn-frame-4, #venn-frame-5; item 3 deep: #liquidfun-world/#glyph-break/#speck-word; item 4 deep: #speck-dev-process / #speck-dev-frame5. */
     var SPECK_DESIGN_SLUG = 'speck-design-ideas';
     var GALLERY_15_SLUG = 'gallery-1-5';
     var SPECK_TESTINGS_SLUG = 'speck-testings';
@@ -459,7 +459,16 @@
     };
 
     function isSpeckDesignSubslug(s) {
-      return s === 'venn-frame-4' || s === 'venn-frame-5';
+      return (
+        s === 'live-02-03' ||
+        s === 'live-03-04' ||
+        s === 'live-04-05' ||
+        s === 'live-05-06' ||
+        s === 'live-06-07' ||
+        s === 'live-07-08' ||
+        s === 'venn-frame-4' ||
+        s === 'venn-frame-5'
+      );
     }
 
     function isGallery15Subslug(s) {
@@ -523,9 +532,9 @@
       var rawHash = (location.hash || '').replace(/^#/, '').trim();
       var c = canonicalSlug(rawHash);
       if (item.getAttribute('data-slug') === SPECK_DESIGN_SLUG) {
-        var sub2 = 'venn-frame-4';
+        var sub2 = 'live-02-03';
         if (isSpeckDesignSubslug(c)) sub2 = c;
-        else if (c === SPECK_DESIGN_SLUG) sub2 = 'venn-frame-4';
+        else if (c === SPECK_DESIGN_SLUG) sub2 = 'live-02-03';
         var base = src.split('#')[0];
         src = base + '#' + sub2;
       }

@@ -56,9 +56,39 @@ const VENN_SCALE = 1.7; // circles grow larger during Venn split
 const VENN_SIZE_SCALED = VENN_SIZE * VENN_SCALE;
 const VENN_TEXT_SIZE = 24; // keep text size constant during Venn split
 
-// Post 2 item 2 (speck design ideas): white text below speck after exclusive-region fill completes.
+// Post 2 item 2 (design ideas): white text below speck after exclusive-region fill completes.
 const POST2_DESCRIPTION = 'trivial, folklore, objects';
 const POST2_SHOW_DESCRIPTION = true;
+/** Design-ideas shell only (`gallery2Shell=1`): semi-transparent red grid over exclusive regions — speck (`23`), spectrum (`45`), inspect (`67`). */
+const DEBUG_G2_ISOLATED_EXCLUSIVE_FILLS = true;
+
+/**
+ * Full-disk exclusive lobe (same convention as `isInsideSpeckExclusive`), not label-margin `isExclusivePoint`.
+ * `bboxCircleIndex`: only sample that circle’s bbox (the lobe lies inside that disk); finer step + pad reduce edge gaps.
+ */
+function debugG2DrawExclusiveFillGrid(testFn, centers, rFinal, ls, bboxCircleIndex) {
+  push();
+  noStroke();
+  fill(255, 0, 0, 128);
+  rectMode(CENTER);
+  const step = Math.max(0.48 * ls, rFinal * 0.0095);
+  const cell = step * 1.68;
+  const pad = Math.max(step * 0.9, rFinal * 0.018);
+  const ciList =
+    bboxCircleIndex !== undefined && bboxCircleIndex >= 0 && bboxCircleIndex < 3
+      ? [bboxCircleIndex]
+      : [0, 1, 2];
+  for (let li = 0; li < ciList.length; li++) {
+    const c = centers[ciList[li]];
+    for (let wx = c.x - rFinal - pad; wx <= c.x + rFinal + pad; wx += step) {
+      for (let wy = c.y - rFinal - pad; wy <= c.y + rFinal + pad; wy += step) {
+        if (!testFn(wx, wy)) continue;
+        rect(wx, wy, cell, cell);
+      }
+    }
+  }
+  pop();
+}
 
 /** Screen-space; centered in projected speck-exclusive width (not full canvas). */
 function drawPost2ExclusiveDescription(ls, centerScreenX, centerScreenY, maxWidthScreen) {
@@ -1105,6 +1135,20 @@ function isExclusivePoint(px, py, i, centers, r) {
   return true;
 }
 
+/** Exclusive lobe for circle `i` using full `rFinal` disks (matches `isInsideSpeckExclusive` when i === 0). */
+function isExclusiveRegionGeometric(px, py, i, centers, rFinal) {
+  const r2 = rFinal * rFinal;
+  for (let k = 0; k < centers.length; k++) {
+    const d2 = distSq(px, py, centers[k].x, centers[k].y);
+    if (k === i) {
+      if (d2 > r2) return false;
+    } else if (d2 <= r2) {
+      return false;
+    }
+  }
+  return true;
+}
+
 function rotatedRectFits(px, py, theta, w, h, i, centers, r) {
   // Test corners (and midpoints) of the rotated text box.
   const hw = w / 2;
@@ -1408,6 +1452,21 @@ function draw() {
         ellipse(x, y, vennD, vennD);
       }
 
+      if (
+        DEBUG_G2_ISOLATED_EXCLUSIVE_FILLS &&
+        motionSegment === '23' &&
+        typeof window !== 'undefined' &&
+        window.__SPEC_GALLERY2_SHELL__ === true
+      ) {
+        debugG2DrawExclusiveFillGrid(
+          (wx, wy) => isInsideSpeckExclusive(wx, wy, curTargets, rFinal),
+          curTargets,
+          rFinal,
+          ls,
+          0,
+        );
+      }
+
       for (let i = 0; i < 3; i++) {
         const x = curTargets[i].x;
         const y = curTargets[i].y;
@@ -1679,6 +1738,21 @@ function draw() {
         strokeJoin(ROUND);
         strokeCap(ROUND);
         ellipse(x, y, vennD, vennD);
+      }
+
+      if (
+        DEBUG_G2_ISOLATED_EXCLUSIVE_FILLS &&
+        segment45 &&
+        typeof window !== 'undefined' &&
+        window.__SPEC_GALLERY2_SHELL__ === true
+      ) {
+        debugG2DrawExclusiveFillGrid(
+          (wx, wy) => isExclusiveRegionGeometric(wx, wy, 2, targets, rFinal),
+          targets,
+          rFinal,
+          ls,
+          2,
+        );
       }
 
       for (let i = 0; i < 3; i++) {
@@ -2103,6 +2177,21 @@ function draw() {
         strokeJoin(ROUND);
         strokeCap(ROUND);
         ellipse(x, y, vennD, vennD);
+      }
+
+      if (
+        DEBUG_G2_ISOLATED_EXCLUSIVE_FILLS &&
+        segment67 &&
+        typeof window !== 'undefined' &&
+        window.__SPEC_GALLERY2_SHELL__ === true
+      ) {
+        debugG2DrawExclusiveFillGrid(
+          (wx, wy) => isExclusiveRegionGeometric(wx, wy, 1, targets, rFinal),
+          targets,
+          rFinal,
+          ls,
+          1,
+        );
       }
 
       for (let i = 0; i < 3; i++) {
