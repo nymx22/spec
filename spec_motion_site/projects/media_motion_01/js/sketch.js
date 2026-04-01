@@ -59,7 +59,7 @@ const VENN_TEXT_SIZE = 24; // keep text size constant during Venn split
 // Post 2 item 2 (design ideas): white text below speck after exclusive-region fill completes.
 const POST2_DESCRIPTION = 'trivial, folklore, objects';
 const POST2_SHOW_DESCRIPTION = true;
-/** Design-ideas shell only (`gallery2Shell=1`): semi-transparent red grid over exclusive regions — speck (`23`), spectrum (`45`), inspect (`67`). */
+/** Design-ideas shell only (`gallery2Shell=1`): red grid — speck (`23`), speck∩spectrum\inspect (`34`), spectrum (`45`), inspect∩spectrum\speck (`56`), inspect (`67`). */
 const DEBUG_G2_ISOLATED_EXCLUSIVE_FILLS = true;
 
 /**
@@ -85,6 +85,23 @@ function debugG2DrawExclusiveFillGrid(testFn, centers, rFinal, ls, bboxCircleInd
         if (!testFn(wx, wy)) continue;
         rect(wx, wy, cell, cell);
       }
+    }
+  }
+  pop();
+}
+
+/** Sample `testFn` on a fixed world axis-aligned rect (e.g. speck∩spectrum overlap). */
+function debugG2DrawFillGridWorldRect(testFn, minX, maxX, minY, maxY, rFinal, ls) {
+  push();
+  noStroke();
+  fill(255, 0, 0, 128);
+  rectMode(CENTER);
+  const step = Math.max(0.48 * ls, rFinal * 0.0095);
+  const cell = step * 1.68;
+  for (let wx = minX; wx <= maxX; wx += step) {
+    for (let wy = minY; wy <= maxY; wy += step) {
+      if (!testFn(wx, wy)) continue;
+      rect(wx, wy, cell, cell);
     }
   }
   pop();
@@ -1149,6 +1166,24 @@ function isExclusiveRegionGeometric(px, py, i, centers, rFinal) {
   return true;
 }
 
+/** Speck ∩ spectrum with full `rFinal` disks, excluding the inspect (1) disk (no triple-overlap fill). */
+function isSpeckSpectrumOverlapGeometric(px, py, centers, rFinal) {
+  const r2 = rFinal * rFinal;
+  const d0 = distSq(px, py, centers[0].x, centers[0].y);
+  const d1 = distSq(px, py, centers[1].x, centers[1].y);
+  const d2 = distSq(px, py, centers[2].x, centers[2].y);
+  return d0 <= r2 && d2 <= r2 && d1 > r2;
+}
+
+/** Inspect ∩ spectrum with full `rFinal` disks, excluding the speck (0) disk (pair-phrase lobe, no triple overlap). */
+function isInspectSpectrumOverlapGeometric(px, py, centers, rFinal) {
+  const r2 = rFinal * rFinal;
+  const d0 = distSq(px, py, centers[0].x, centers[0].y);
+  const d1 = distSq(px, py, centers[1].x, centers[1].y);
+  const d2 = distSq(px, py, centers[2].x, centers[2].y);
+  return d1 <= r2 && d2 <= r2 && d0 > r2;
+}
+
 function rotatedRectFits(px, py, theta, w, h, i, centers, r) {
   // Test corners (and midpoints) of the rotated text box.
   const hw = w / 2;
@@ -1742,6 +1777,28 @@ function draw() {
 
       if (
         DEBUG_G2_ISOLATED_EXCLUSIVE_FILLS &&
+        segment34 &&
+        typeof window !== 'undefined' &&
+        window.__SPEC_GALLERY2_SHELL__ === true
+      ) {
+        const padG = rFinal * 1.05;
+        const gx0 = Math.min(c0.x, c1.x, c2.x) - padG;
+        const gx1 = Math.max(c0.x, c1.x, c2.x) + padG;
+        const gy0 = Math.min(c0.y, c1.y, c2.y) - padG;
+        const gy1 = Math.max(c0.y, c1.y, c2.y) + padG;
+        debugG2DrawFillGridWorldRect(
+          (wx, wy) => isSpeckSpectrumOverlapGeometric(wx, wy, targets, rFinal),
+          gx0,
+          gx1,
+          gy0,
+          gy1,
+          rFinal,
+          ls,
+        );
+      }
+
+      if (
+        DEBUG_G2_ISOLATED_EXCLUSIVE_FILLS &&
         segment45 &&
         typeof window !== 'undefined' &&
         window.__SPEC_GALLERY2_SHELL__ === true
@@ -2177,6 +2234,28 @@ function draw() {
         strokeJoin(ROUND);
         strokeCap(ROUND);
         ellipse(x, y, vennD, vennD);
+      }
+
+      if (
+        DEBUG_G2_ISOLATED_EXCLUSIVE_FILLS &&
+        segment56 &&
+        typeof window !== 'undefined' &&
+        window.__SPEC_GALLERY2_SHELL__ === true
+      ) {
+        const padG = rFinal * 1.05;
+        const gx0 = Math.min(c0.x, c1.x, c2.x) - padG;
+        const gx1 = Math.max(c0.x, c1.x, c2.x) + padG;
+        const gy0 = Math.min(c0.y, c1.y, c2.y) - padG;
+        const gy1 = Math.max(c0.y, c1.y, c2.y) + padG;
+        debugG2DrawFillGridWorldRect(
+          (wx, wy) => isInspectSpectrumOverlapGeometric(wx, wy, targets, rFinal),
+          gx0,
+          gx1,
+          gy0,
+          gy1,
+          rFinal,
+          ls,
+        );
       }
 
       if (
