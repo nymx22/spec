@@ -2789,13 +2789,25 @@ function draw() {
       if (segment89 && (!f6end || typeof f6end.camX !== 'number')) {
         f6end = computeSpacePhrasesStillFrame6End(vennTargetsSpread, rFinal, cy, width, height, ls);
       }
+      if (segment89 && f6end && typeof f6end.camX === 'number' && typeof f6end.angle !== 'number') {
+        f6end = {
+          ...f6end,
+          angle: still08Frame6EndFromGeometry(
+            buildSpeckInspectSpaceFrame6Geometry(vennTargetsSpread, rFinal, width, height, ls),
+            cy,
+          ).angle,
+        };
+      }
     let fadeIndividual = 1;
     let fadeOverlap = 1;
     let fadeLogo = 1;
     let seg89SpacePhraseAlpha = 255;
+    /** Still 08→09: fade black space lines at fixed camera, then zoom + spin + Still 09 white in. */
     const G89_TEXT_FADE_MS = 450;
-    const G89_CAM_MS = 950;
-    const G89_TOTAL_MS = G89_TEXT_FADE_MS + G89_CAM_MS;
+    const G89_ZOOM_MS = 950;
+    const G89_TOTAL_MS = G89_TEXT_FADE_MS + G89_ZOOM_MS;
+    const G91011_FADE_MS = 1200;
+    let seg89SceneAngle = 0;
     if (segment89) {
       if (prevGalleryFrame !== 2) {
         galleryAnimStartMs = millis();
@@ -2808,18 +2820,20 @@ function draw() {
           camY = f6end.camY;
           camZoom = f6end.camZoom;
           screenY = f6end.screenY;
+          seg89SceneAngle = f6end.angle;
           seg89SpacePhraseAlpha = 255 * (1 - smootherstep(elapsed89 / G89_TEXT_FADE_MS));
+          fadeIndividual = 0;
         } else {
-          const uCam = Math.max(0, Math.min(1, (elapsed89 - G89_TEXT_FADE_MS) / G89_CAM_MS));
-          const eCam = easeInOutCubic(uCam);
-          camX = lerp(f6end.camX, cam1.x, eCam);
-          camY = lerp(f6end.camY, cam1.y, eCam);
-          camZoom = lerp(f6end.camZoom, cam1.zoom, eCam);
-          screenY = lerp(f6end.screenY, cam1.screenY, eCam);
+          const uCam = Math.min(1, (elapsed89 - G89_TEXT_FADE_MS) / G89_ZOOM_MS);
+          const e = easeInOutCubic(uCam);
+          camX = lerp(f6end.camX, cam1.x, e);
+          camY = lerp(f6end.camY, cam1.y, e);
+          camZoom = lerp(f6end.camZoom, cam1.zoom, e);
+          screenY = lerp(f6end.screenY, cam1.screenY, e);
+          seg89SceneAngle = lerp(f6end.angle, 0, e);
           seg89SpacePhraseAlpha = 0;
+          fadeIndividual = smootherstep(uCam);
         }
-        fadeIndividual =
-          elapsed89 <= G89_TEXT_FADE_MS ? 0 : smootherstep((elapsed89 - G89_TEXT_FADE_MS) / G89_CAM_MS);
       } else {
         fadeIndividual = 1;
         seg89SpacePhraseAlpha = 0;
@@ -2829,7 +2843,7 @@ function draw() {
         galleryAnimStartMs = millis();
         loop();
       }
-      const tFade = Math.max(0, Math.min(1, (millis() - galleryAnimStartMs) / 1200));
+      const tFade = Math.max(0, Math.min(1, (millis() - galleryAnimStartMs) / G91011_FADE_MS));
       const eFade = easeInOutCubic(tFade);
       if (motionSegment === '910' && f6end && typeof f6end.camX === 'number') {
         camX = lerp(f6end.camX, camX, eFade);
@@ -2838,10 +2852,10 @@ function draw() {
         screenY = lerp(f6end.screenY, screenY, eFade);
       }
       if (motionSegment === '910') {
-        fadeOverlap = tFade >= 0.5 ? 1 : 0;
+        fadeOverlap = smootherstep(tFade);
       }
       if (motionSegment === '1011') {
-        fadeLogo = tFade >= 0.5 ? 1 : 0;
+        fadeLogo = smootherstep(tFade);
       }
     }
 
@@ -2854,12 +2868,27 @@ function draw() {
     ) {
       noLoop();
     }
+    if (
+      galleryExtended &&
+      galleryFrame === 2 &&
+      (motionSegment === '910' || motionSegment === '1011') &&
+      millis() - galleryAnimStartMs >= G91011_FADE_MS
+    ) {
+      noLoop();
+    }
 
     // Apply camera transform so cam maps to (cx, screenY).
     push();
     translate(cx, screenY);
     scale(camZoom);
     translate(-camX, -camY);
+    if (segment89 && f6end && typeof f6end.camX === 'number') {
+      const g89cx = (vennTargets[0].x + vennTargets[1].x + vennTargets[2].x) / 3;
+      const g89cy = (vennTargets[0].y + vennTargets[1].y + vennTargets[2].y) / 3;
+      translate(g89cx, g89cy);
+      rotate(seg89SceneAngle);
+      translate(-g89cx, -g89cy);
+    }
 
     for (let i = 0; i < 3; i++) {
       const x = vennTargets[i].x;
@@ -2900,7 +2929,7 @@ function draw() {
         allOverlapTextsStill ||
         (window.__SPEC_ALL_PHRASES_STILL__ === true && window.__SPEC_LOGO_STILL__ === true);
       if (motionSegment === '89') {
-        // Still 08 space lines fade out at fixed frame-6 camera, then camera zooms out to Still 09.
+        // Still 08 space lines fade while camera zooms out + scene rotates to upright (Still 09).
         if (f6end && typeof f6end.camX === 'number' && seg89SpacePhraseAlpha > 0) {
           const phrases = SPECK_INSPECT_SPACE_PHRASES;
           const c0 = vennTargets[0];
@@ -2915,9 +2944,9 @@ function draw() {
           };
           const graphCX = (c0.x + c1.x + c2.x) / 3;
           const graphCY = (c0.y + c1.y + c2.y) / 3;
-          const phraseWx = (c0.x + c1.x) / 2;
-          const phraseWy = (c0.y + c1.y) / 2;
-          const anglePh = f6end.angle;
+          const anglePh = seg89SceneAngle;
+          // Match compact frame 6 Still 08: phrase stack anchored to canvas center (cx, cy), not
+          // speck–inspect midpoint — per-line x from lobeCenterScreenXAtY uses screenToUnrotWorldPhrase.
           const screenToUnrotWorldPhrase = (sx, sy) => {
             const rx = (sx - cx) / camZoom + camX;
             const ry = (sy - screenY) / camZoom + camY;
@@ -2938,10 +2967,7 @@ function draw() {
           noStroke();
           const n = phrases.length;
           const mid = (n - 1) / 2;
-          const baseScr = {
-            x: cx + (phraseWx - camX) * camZoom,
-            y: screenY + (phraseWy - camY) * camZoom,
-          };
+          const baseScr = { x: cx, y: cy };
           const lobeCenterScreenXAtY = (sy) => {
             const samples = 160;
             let minX = Infinity;
@@ -3007,13 +3033,27 @@ function draw() {
           if (!nHit) return null;
           return { x: accX / nHit, y: accY / nHit };
         };
-        const toScreen = (wx, wy) => ({
-          x: cx + (wx - camX) * camZoom,
-          y: screenY + (wy - camY) * camZoom,
-        });
         const graphCenterWorld = {
           x: (c0.x + c1.x + c2.x) / 3,
           y: (c0.y + c1.y + c2.y) / 3,
+        };
+        const gcxOv = graphCenterWorld.x;
+        const gcyOv = graphCenterWorld.y;
+        const toScreen = (wx, wy) => {
+          let rwx = wx;
+          let rwy = wy;
+          if (segment89 && seg89SceneAngle !== 0) {
+            const ca = Math.cos(seg89SceneAngle);
+            const sa = Math.sin(seg89SceneAngle);
+            const ox = wx - gcxOv;
+            const oy = wy - gcyOv;
+            rwx = gcxOv + ca * ox - sa * oy;
+            rwy = gcyOv + sa * ox + ca * oy;
+          }
+          return {
+            x: cx + (rwx - camX) * camZoom,
+            y: screenY + (rwy - camY) * camZoom,
+          };
         };
         const graphCenterScreen = toScreen(graphCenterWorld.x, graphCenterWorld.y);
         const ca = regionCenter(inA);
@@ -3065,16 +3105,29 @@ function draw() {
         const zoomScale = Math.max(0.35, camZoom / REF_ZOOM_STILL03);
         const gap = 74 * ls * zoomScale;
         const styleSize = 20 * ls * zoomScale;
+        const gcxInd = (vennTargets[0].x + vennTargets[1].x + vennTargets[2].x) / 3;
+        const gcyInd = (vennTargets[0].y + vennTargets[1].y + vennTargets[2].y) / 3;
         const placeRelativeToLabel = (wx, wy, theta, mode, phrase) => {
-          const sx = cx + (wx - camX) * camZoom;
-          const sy = screenY + (wy - camY) * camZoom;
+          let rwx = wx;
+          let rwy = wy;
+          if (segment89 && seg89SceneAngle !== 0) {
+            const ca = Math.cos(seg89SceneAngle);
+            const sa = Math.sin(seg89SceneAngle);
+            const ox = wx - gcxInd;
+            const oy = wy - gcyInd;
+            rwx = gcxInd + ca * ox - sa * oy;
+            rwy = gcyInd + sa * ox + ca * oy;
+          }
+          const sx = cx + (rwx - camX) * camZoom;
+          const sy = screenY + (rwy - camY) * camZoom;
           const sign = mode === 'above' ? -1 : 1;
-          const dx = -Math.sin(theta) * gap * sign;
-          const dy = Math.cos(theta) * gap * sign;
+          const thetaScr = theta + (segment89 ? seg89SceneAngle : 0);
+          const dx = -Math.sin(thetaScr) * gap * sign;
+          const dy = Math.cos(thetaScr) * gap * sign;
           push();
           resetMatrix();
           translate(sx + dx, sy + dy);
-          rotate(theta);
+          rotate(thetaScr);
           text(phrase, 0, 0);
           pop();
         };
