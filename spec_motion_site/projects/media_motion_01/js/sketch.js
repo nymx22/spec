@@ -25,6 +25,13 @@ const SPECK_SPECTRUM_OVERLAP_PHRASES = [
 const SPECTRUM_STILL_PHRASES = [
   'minority representation, trends, aesthetics',
 ];
+/** Sole duration (ms) for fading in those Still 05 white lines on compact frame 4 (live `45`); higher = slower / calmer ramp. */
+const SPECTRUM_STILL_PHRASE_FADE_MS = 2000;
+/** Target black dots per scanned character (rejection-sampled on white fill only); `d` = diameter (px). */
+const SPECTRUM_STILL_PHRASE_SCAN_GLITCH_DOTS = 64;
+const SPECTRUM_STILL_PHRASE_SCAN_GLITCH_DOT_D = 2.25;
+/** Luminance threshold on mask buffer (0–255) to count as “white” glyph. */
+const SPECTRUM_STILL_PHRASE_SCAN_GLITCH_WHITE_THRESH = 118;
 const INSPECT_STILL_PHRASES = [
   'archive, research, fieldwork',
 ];
@@ -43,6 +50,27 @@ const SPECK_INSPECT_SPACE_PHRASES = [
   'landscape',
   'study of space',
 ];
+
+/** Item 2.5 slide 3 (`motionSegment=45` live): spectrum label reader + vertical scan in exclusive lobe. */
+const SPECTRUM_READER_SWEEP_FRAC = 0.55;
+/** Screen-space vertical sampling step (px) for spectrum-exclusive scan clipping. */
+const SPECTRUM_READER_SCAN_SCREEN_STEP_PX = 2.8;
+/** Fast scan bar stroke weight (× `ls`); half-width for glitch overlap with **`spectrumReaderScanBarsScreen`**. */
+const SPECTRUM_READER_SCAN_STROKE_LS = 10.85;
+/** Slower, thicker bar (× `ls`); drawn behind the fast bar. */
+const SPECTRUM_READER_SCAN_STROKE_SLOW_LS = 17.6;
+/** Slow bar sweep period = `cycleMs` × this (same ping-pong shape as the fast bar). */
+const SPECTRUM_READER_SLOW_BAR_CYCLE_MUL = 2.45;
+/** Match compact frame‑4 Venn ring **`strokeWeight(3 * ls)`** — used to extend reader clip to the **outer** spectrum edge (world units via zoom). */
+const SPECTRUM_READER_CLIP_VENN_RING_STROKE_LS = 3;
+/**
+ * Live `45` reader: item **2.5** slide **3** vs hub **2.7** slides **4–5** (`liveMotions27`).
+ * Use `spectrumReaderTuning()` for cycle length. Scan bars: fast **`SPECTRUM_READER_SCAN_STROKE_LS`**, slow thicker **`SPECTRUM_READER_SCAN_STROKE_SLOW_LS`** (**`SPECTRUM_READER_SLOW_BAR_CYCLE_MUL`** on `cycleMs`).
+ */
+const SPECTRUM_READER_TUNING = {
+  default: { cycleMs: 5200 },
+  live27: { cycleMs: 8400 },
+};
 const TOTAL_LETTERS = 5 + 7 + 8; // 20
 
 const sGap = 50; // vertical spacing for three words inside single circle
@@ -59,21 +87,115 @@ const VENN_TEXT_SIZE = 24; // keep text size constant during Venn split
 // Post 2 item 2 (design ideas): white text below speck after exclusive-region fill completes.
 const POST2_DESCRIPTION = 'trivial, folklore, objects';
 const POST2_SHOW_DESCRIPTION = true;
-/** Design-ideas shell only (`gallery2Shell=1`): red grid — speck (`23`), speck∩spectrum\inspect (`34`), spectrum (`45`), inspect∩spectrum\speck (`56`), inspect (`67`). */
+/** Grid cells filled per landing glyph on the sediment floor layer (item 2 extended frame 5; was 14). */
+const POST2_SEDIMENT_CELLS_PER_PARTICLE = 70;
+const POST2_SEDIMENT_SPAWN_PER_TICK = 2;
+const POST2_SEDIMENT_SPAWN_EVERY_MS = 70;
+/** Gallery 2.5 slide 1 only (`liveMotionsDesign` + red-coverage sediment): faster spawn + chunkier floor per glyph. */
+const LIVE25_SEDIMENT_CELLS_PER_PARTICLE = 150;
+const LIVE25_SEDIMENT_SPAWN_PER_TICK =5;
+const LIVE25_SEDIMENT_SPAWN_EVERY_MS = 50;
+/** Gallery 2.7 only: fill spawn cadence (vs **2.5** `LIVE25_*`). */
+const LIVE27_SEDIMENT_SPAWN_PER_TICK = 3;
+const LIVE27_SEDIMENT_SPAWN_EVERY_MS = 56;
+/** Gallery 2.7: cells added per glyph landing (base before landing ramp / `LIVE27_FILL_CELLS_LANDING_MUL`). */
+const LIVE27_SEDIMENT_CELLS_PER_PARTICLE = 175;
+/** Gallery 2.5 slide 1: optional pause (frames) after fill before drain; **0** = drain uses same clock as fill immediately. */
+const LIVE25_DRAIN_HOLD_FRAMES = 0;
+/** Gallery 2.5 / 2.7 slide 1: POST2 eases in after zoom (`liveMotionsDesign`); longer = slower. */
+const LIVE25_POST2_FADE_IN_MS = 900;
+/** Gallery 2.7 slide 1: after sediment drain, POST2 fades out before the loop restarts (full white “quiet” beat). */
+const LIVE25_POST2_FADE_OUT_MS = 900;
+/** Gallery 2.7 slide 1: wall-clock span for fill ramp (`easeInExpo`) and drain ramp (`easeOutExpo`); same duration for both. */
+const LIVE27_SEDIMENT_EASE_MS = 1350;
+/** Gallery 2.7: max cells cleared per **frame** during eased drain (large values = chunky pops). */
+const LIVE27_DRAIN_MAX_CELLS_PER_FRAME = 118;
+/** Gallery 2.7: max cells added per **frame** from glyph landings (avoids multi-hit spikes). */
+const LIVE27_FILL_MAX_CELLS_PER_FRAME = 132;
+/** Gallery 2.7: multiplies spawn rate vs base `spawnEveryMs` at full ramp. */
+const LIVE27_FILL_SPAWN_SPEED_MUL = 1.42;
+/** Gallery 2.7: scales `cellsPerParticle` on landing at full ramp (easeInExpo). */
+const LIVE27_FILL_CELLS_LANDING_MUL = 1.32;
+/** Gallery 2.7 drain: black glyphs falling out — interval divisor (higher = denser / faster). */
+const LIVE27_DRAIN_GLYPH_SPAWN_MUL = 1.38;
+/** Gallery 2.7 drain: glyphs spawned per spawn pulse (independent of fill `spawnPerTick`). */
+const LIVE27_DRAIN_GLYPHS_PER_TICK = 2;
+/** Gallery 2.7 drain: initial downward speed for black “fall-out” glyphs (pixels/frame-ish; then `gravity`). */
+const LIVE27_DRAIN_GLYPH_VY_MIN = 0.45;
+const LIVE27_DRAIN_GLYPH_VY_MAX = 2.05;
+/** Multiplier on `s.gravity` while integrating drain glyphs ( >1 = faster acceleration downward). */
+const LIVE27_DRAIN_GLYPH_GRAVITY_MUL = 1.22;
+function patchPost2SedimentRuntimeTuning(s) {
+  if (!s) return;
+  if (s.redCoverageSediment) {
+    if (specLiveMotions27()) {
+      s.cellsPerParticle = LIVE27_SEDIMENT_CELLS_PER_PARTICLE;
+      s.spawnPerTick = LIVE27_SEDIMENT_SPAWN_PER_TICK;
+      s.spawnEveryMs = LIVE27_SEDIMENT_SPAWN_EVERY_MS;
+    } else {
+      s.cellsPerParticle = LIVE25_SEDIMENT_CELLS_PER_PARTICLE;
+      s.spawnPerTick = LIVE25_SEDIMENT_SPAWN_PER_TICK;
+      s.spawnEveryMs = LIVE25_SEDIMENT_SPAWN_EVERY_MS;
+    }
+  } else {
+    s.cellsPerParticle = POST2_SEDIMENT_CELLS_PER_PARTICLE;
+    s.spawnPerTick = POST2_SEDIMENT_SPAWN_PER_TICK;
+    s.spawnEveryMs = POST2_SEDIMENT_SPAWN_EVERY_MS;
+  }
+}
+/** Design-ideas shell only (`gallery2Shell=1`): red grid — speck (`23`), speck∩spectrum\inspect (`34`), spectrum (`45`), inspect∩spectrum\speck (`56`), inspect (`67`), speck∩inspect\spectrum (`78`). */
 const DEBUG_G2_ISOLATED_EXCLUSIVE_FILLS = true;
+/** Slide 1 (`23`) red debug grid alpha (0–255); **0** = off (no red). Slides **`34`/`56`/`67`/`78`** default to **128** unless overridden. */
+const DEBUG_G2_SLIDE1_FILL_ALPHA = 0;
+/** Slide 3 (`45`) spectrum-exclusive red debug grid; **0** = transparent (waveform / reader visible without red fill). */
+const DEBUG_G2_SLIDE45_FILL_ALPHA = 0;
+function specLiveMotionsDesign() {
+  return typeof window !== 'undefined' && window.__SPEC_LIVE_MOTIONS_DESIGN__ === true;
+}
+
+/** Hub item **2.7** only (`liveMotions27=1`): slide **23** speck label uses difference blend over sediment so ink reads inverted over black. */
+function specLiveMotions27() {
+  return typeof window !== 'undefined' && window.__SPEC_LIVE_MOTIONS_27__ === true;
+}
+
+/** Branch for `SPECTRUM_READER_TUNING` (2.5 slide 3 vs hub 2.7 slides 4–5). */
+function spectrumReaderTuning() {
+  return specLiveMotions27() ? SPECTRUM_READER_TUNING.live27 : SPECTRUM_READER_TUNING.default;
+}
+
+function specGallery2Shell() {
+  return typeof window !== 'undefined' && window.__SPEC_GALLERY2_SHELL__ === true;
+}
+
+/**
+ * Post1.2 hub **1** (stills) & **1.5** (live motions): `post2-gallery.html` without `gallery2Shell` / `liveMotionsDesign`.
+ * Canvas phrase / POST2 typography uses **black** ink on the light gray stage (vs white fills on design shells).
+ */
+function specGallery1Or15InkTypography() {
+  return !specGallery2Shell() && !specLiveMotionsDesign();
+}
+
+/** Shared with slide-1 red debug grid and item **2.5** sediment “red coverage” fill (`liveMotionsDesign`). */
+function speckExclusiveRedDebugGridParams(ls, rFinal) {
+  const step = Math.max(0.48 * ls, rFinal * 0.0095);
+  const cellDraw = step * 1.68;
+  const pad = Math.max(step * 0.9, rFinal * 0.018);
+  return { step, cellDraw, pad };
+}
 
 /**
  * Full-disk exclusive lobe (same convention as `isInsideSpeckExclusive`), not label-margin `isExclusivePoint`.
  * `bboxCircleIndex`: only sample that circle’s bbox (the lobe lies inside that disk); finer step + pad reduce edge gaps.
  */
-function debugG2DrawExclusiveFillGrid(testFn, centers, rFinal, ls, bboxCircleIndex) {
+function debugG2DrawExclusiveFillGrid(testFn, centers, rFinal, ls, bboxCircleIndex, fillAlpha) {
+  const a = fillAlpha !== undefined && fillAlpha !== null ? fillAlpha : 128;
+  if (a <= 0) return;
+  const { step, cellDraw, pad } = speckExclusiveRedDebugGridParams(ls, rFinal);
   push();
   noStroke();
-  fill(255, 0, 0, 128);
+  fill(255, 0, 0, a);
   rectMode(CENTER);
-  const step = Math.max(0.48 * ls, rFinal * 0.0095);
-  const cell = step * 1.68;
-  const pad = Math.max(step * 0.9, rFinal * 0.018);
+  const cell = cellDraw;
   const ciList =
     bboxCircleIndex !== undefined && bboxCircleIndex >= 0 && bboxCircleIndex < 3
       ? [bboxCircleIndex]
@@ -96,8 +218,8 @@ function debugG2DrawFillGridWorldRect(testFn, minX, maxX, minY, maxY, rFinal, ls
   noStroke();
   fill(255, 0, 0, 128);
   rectMode(CENTER);
-  const step = Math.max(0.48 * ls, rFinal * 0.0095);
-  const cell = step * 1.68;
+  const { step, cellDraw } = speckExclusiveRedDebugGridParams(ls, rFinal);
+  const cell = cellDraw;
   for (let wx = minX; wx <= maxX; wx += step) {
     for (let wy = minY; wy <= maxY; wy += step) {
       if (!testFn(wx, wy)) continue;
@@ -105,6 +227,423 @@ function debugG2DrawFillGridWorldRect(testFn, minX, maxX, minY, maxY, rFinal, ls
     }
   }
   pop();
+}
+
+/**
+ * Inverse of gallery frame-4 stack: translate(cx,screenY) scale(camZoom) translate(-camX,-camY),
+ * then rotate(sceneAngle) about (graphCX, graphCY).
+ */
+function spectrumReaderScreenToWorld(sx, sy, cam) {
+  const rx = (sx - cam.cx) / cam.camZoom + cam.camX;
+  const ry = (sy - cam.screenY) / cam.camZoom + cam.camY;
+  const ca = Math.cos(cam.sceneAngle);
+  const sa = Math.sin(cam.sceneAngle);
+  const ddx = rx - cam.graphCX;
+  const ddy = ry - cam.graphCY;
+  const ox = ca * ddx + sa * ddy;
+  const oy = -sa * ddx + ca * ddy;
+  return { x: cam.graphCX + ox, y: cam.graphCY + oy };
+}
+
+function spectrumReaderWorldToScreen(wx, wy, cam) {
+  const ca = Math.cos(cam.sceneAngle);
+  const sa = Math.sin(cam.sceneAngle);
+  const ox = wx - cam.graphCX;
+  const oy = wy - cam.graphCY;
+  const rx = cam.graphCX + ca * ox - sa * oy;
+  const ry = cam.graphCY + sa * ox + ca * oy;
+  return {
+    x: cam.cx + (rx - cam.camX) * cam.camZoom,
+    y: cam.screenY + (ry - cam.camY) * cam.camZoom,
+  };
+}
+
+/** True if any reader scan strip (center **`x`**, half-width **`half`**) overlaps screen-x interval `[left, right]`. */
+function spectrumReaderScanStripsHitScreenXInterval(left, right, strips) {
+  if (!strips || strips.length === 0) return false;
+  for (let i = 0; i < strips.length; i++) {
+    const x = strips[i].x;
+    const h = strips[i].half;
+    if (!(x + h < left || x - h > right)) return true;
+  }
+  return false;
+}
+
+/**
+ * Contiguous canvas-vertical segments where a thick vertical stroke fits inside the exclusive region.
+ * When `halfStrokePx` > 0, both horizontal edges of the stroke (center ± half width) must test inside;
+ * otherwise only the center column is used (thin stroke).
+ */
+function spectrumExclusiveVerticalRunsAtScreenX(scanSx, inExclusiveFn, yStepPx, cam, halfStrokePx) {
+  const h = typeof halfStrokePx === 'number' && halfStrokePx > 0 ? halfStrokePx : 0;
+  const runs = [];
+  let runStart = null;
+  for (let sy = 0; sy <= height; sy += yStepPx) {
+    let inside;
+    if (h > 0) {
+      const wl = spectrumReaderScreenToWorld(scanSx - h, sy, cam);
+      const wr = spectrumReaderScreenToWorld(scanSx + h, sy, cam);
+      inside = inExclusiveFn(wl.x, wl.y) && inExclusiveFn(wr.x, wr.y);
+    } else {
+      const w = spectrumReaderScreenToWorld(scanSx, sy, cam);
+      inside = inExclusiveFn(w.x, w.y);
+    }
+    if (inside && runStart === null) runStart = sy;
+    if (!inside && runStart !== null) {
+      runs.push({ y0: runStart, y1: sy });
+      runStart = null;
+    }
+  }
+  if (runStart !== null) runs.push({ y0: runStart, y1: height });
+  return runs;
+}
+
+/** Canvas-vertical scan at fixed screen X; clip to spectrum-exclusive lobe via inverse projection. Filled rects (sharp edges), not stroked lines with round caps. */
+function drawSpectrumExclusiveVerticalScanScreen(scanScreenX, ls, strokeLs, inExclusiveFn, cam) {
+  const strokePx = strokeLs * ls;
+  const halfStrokePx = strokePx / 2;
+  const runs = spectrumExclusiveVerticalRunsAtScreenX(
+    scanScreenX,
+    inExclusiveFn,
+    SPECTRUM_READER_SCAN_SCREEN_STEP_PX,
+    cam,
+    halfStrokePx,
+  );
+  push();
+  resetMatrix();
+  rectMode(CENTER);
+  noStroke();
+  fill(0, 255);
+  for (let r = 0; r < runs.length; r++) {
+    const { y0, y1 } = runs[r];
+    const h = y1 - y0;
+    if (h <= 0) continue;
+    rect(scanScreenX, y0 + h / 2, strokePx, h);
+  }
+  pop();
+}
+
+/**
+ * Dense dots on glyph fill when the scan overlaps each character (mask = white on black).
+ * `invertDots` (hub **2.7** slide **5**): draw **white** dots on inverted (black) glyphs.
+ */
+function drawSpectrumStillPhrasesScanGlitchDots(
+  spectrumSx,
+  firstLineY,
+  lineStep,
+  phrases,
+  phraseSizeScreen,
+  phraseAlpha,
+  ls,
+  invertDots,
+) {
+  const strips = spectrumReaderScanBarsScreen;
+  if (!strips || strips.length === 0 || phraseAlpha <= 8) return;
+  textSize(phraseSizeScreen);
+  if (uiFont) textFont(uiFont);
+  textAlign(CENTER, TOP);
+  const n = phrases.length;
+  const targetDotsPerChar = SPECTRUM_STILL_PHRASE_SCAN_GLITCH_DOTS;
+  const dotD = SPECTRUM_STILL_PHRASE_SCAN_GLITCH_DOT_D;
+  const th = SPECTRUM_STILL_PHRASE_SCAN_GLITCH_WHITE_THRESH;
+  const maxTries = targetDotsPerChar * 52;
+  noStroke();
+  for (let pi = 0; pi < n; pi++) {
+    const line = phrases[pi];
+    const twLine = textWidth(line);
+    const lineLx = spectrumSx - twLine / 2;
+    const ty = firstLineY + pi * lineStep;
+    const lineRx = spectrumSx + twLine / 2;
+    if (!spectrumReaderScanStripsHitScreenXInterval(lineLx, lineRx, strips)) continue;
+
+    let penX = lineLx;
+    const chars = Array.from(line);
+    for (let ci = 0; ci < chars.length; ci++) {
+      const ch = chars[ci];
+      const cw = textWidth(ch);
+      const chLx = penX;
+      const chRx = penX + cw;
+      penX += cw;
+      if (!spectrumReaderScanStripsHitScreenXInterval(chLx, chRx, strips)) continue;
+
+      const w = Math.max(4, Math.ceil(cw));
+      const h = Math.max(4, Math.ceil(Math.min(lineStep * 0.92, phraseSizeScreen * 1.48)));
+      if (
+        !spectrumPhraseGlitchMaskBuffer ||
+        spectrumPhraseGlitchMaskBuffer.width !== w ||
+        spectrumPhraseGlitchMaskBuffer.height !== h
+      ) {
+        spectrumPhraseGlitchMaskBuffer = createGraphics(w, h);
+        spectrumPhraseGlitchMaskBuffer.pixelDensity(1);
+      }
+      const pg = spectrumPhraseGlitchMaskBuffer;
+      pg.background(0);
+      pg.fill(255);
+      pg.noStroke();
+      pg.textAlign(CENTER, TOP);
+      pg.textSize(phraseSizeScreen);
+      if (uiFont) pg.textFont(uiFont);
+      pg.text(ch, w / 2, 0);
+      pg.loadPixels();
+      const pix = pg.pixels;
+      const stride = w * 4;
+
+      let placed = 0;
+      let tries = 0;
+      while (placed < targetDotsPerChar && tries < maxTries) {
+        tries++;
+        const rxCl = (random(w) | 0) % w;
+        const ryCl = (random(h) | 0) % h;
+        const i = ryCl * stride + rxCl * 4;
+        const lum = 0.299 * pix[i] + 0.587 * pix[i + 1] + 0.114 * pix[i + 2];
+        if (lum <= th) continue;
+        if (invertDots) fill(255, phraseAlpha);
+        else fill(0, phraseAlpha);
+        circle(chLx + rxCl + 0.5, ty + ryCl + 0.5, dotD);
+        placed++;
+      }
+    }
+  }
+}
+
+/**
+ * Same mask sampling and tunables as `drawSpectrumStillPhrasesScanGlitchDots`, for the live rotated **`spectrum`** label (segment **45** reader).
+ * Projects each glyph’s bounds to screen for overlap with **both** scan strips (**`spectrumReaderScanBarsScreen`**); **white** dots on black fill.
+ */
+function drawSpectrumReaderWordScanGlitchDots(
+  cam,
+  wx,
+  wy,
+  theta,
+  ls,
+  vennTextPx,
+  chars,
+  centers,
+  phraseAlpha,
+) {
+  const strips = spectrumReaderScanBarsScreen;
+  if (!strips || strips.length === 0 || phraseAlpha <= 8) return;
+  const cosT = Math.cos(theta);
+  const sinT = Math.sin(theta);
+  const targetDotsPerChar = SPECTRUM_STILL_PHRASE_SCAN_GLITCH_DOTS;
+  const dotD = SPECTRUM_STILL_PHRASE_SCAN_GLITCH_DOT_D;
+  const th = SPECTRUM_STILL_PHRASE_SCAN_GLITCH_WHITE_THRESH;
+  const maxTries = targetDotsPerChar * 52;
+
+  textSize(vennTextPx);
+  if (uiFont) textFont(uiFont);
+
+  push();
+  resetMatrix();
+  noStroke();
+  for (let i = 0; i < chars.length; i++) {
+    const ch = chars[i];
+    const cw = textWidth(ch);
+    const gx = centers[i];
+    const gy = 0;
+    const halfW = cw / 2;
+    const hBuf = Math.max(4, Math.ceil(vennTextPx * 1.48));
+    const halfH = hBuf / 2;
+    const corners = [
+      [gx - halfW, gy - halfH],
+      [gx + halfW, gy - halfH],
+      [gx - halfW, gy + halfH],
+      [gx + halfW, gy + halfH],
+    ];
+    let minSX = Infinity;
+    let maxSX = -Infinity;
+    for (let c = 0; c < 4; c++) {
+      const lx = corners[c][0];
+      const ly = corners[c][1];
+      const wxW = wx + lx * cosT - ly * sinT;
+      const wyW = wy + lx * sinT + ly * cosT;
+      const scr = spectrumReaderWorldToScreen(wxW, wyW, cam);
+      if (scr.x < minSX) minSX = scr.x;
+      if (scr.x > maxSX) maxSX = scr.x;
+    }
+    if (!spectrumReaderScanStripsHitScreenXInterval(minSX, maxSX, strips)) continue;
+
+    const w = Math.max(4, Math.ceil(cw));
+    if (
+      !spectrumPhraseGlitchMaskBuffer ||
+      spectrumPhraseGlitchMaskBuffer.width !== w ||
+      spectrumPhraseGlitchMaskBuffer.height !== hBuf
+    ) {
+      spectrumPhraseGlitchMaskBuffer = createGraphics(w, hBuf);
+      spectrumPhraseGlitchMaskBuffer.pixelDensity(1);
+    }
+    const pg = spectrumPhraseGlitchMaskBuffer;
+    pg.background(0);
+    pg.fill(255);
+    pg.noStroke();
+    pg.textAlign(CENTER, CENTER);
+    pg.textSize(vennTextPx);
+    if (uiFont) pg.textFont(uiFont);
+    pg.text(ch, w / 2, hBuf / 2);
+    pg.loadPixels();
+    const pix = pg.pixels;
+    const stride = w * 4;
+
+    let placed = 0;
+    let tries = 0;
+    while (placed < targetDotsPerChar && tries < maxTries) {
+      tries++;
+      const rxCl = (random(w) | 0) % w;
+      const ryCl = (random(hBuf) | 0) % hBuf;
+      const pi = ryCl * stride + rxCl * 4;
+      const lum = 0.299 * pix[pi] + 0.587 * pix[pi + 1] + 0.114 * pix[pi + 2];
+      if (lum <= th) continue;
+      const localX = gx + (rxCl + 0.5 - w / 2);
+      const localY = gy + (ryCl + 0.5 - hBuf / 2);
+      const wxW = wx + localX * cosT - localY * sinT;
+      const wyW = wy + localX * sinT + localY * cosT;
+      const dotScr = spectrumReaderWorldToScreen(wxW, wyW, cam);
+      fill(255, phraseAlpha);
+      circle(dotScr.x, dotScr.y, dotD);
+      placed++;
+    }
+  }
+  pop();
+}
+
+/**
+ * Left/right extent along the label baseline through `(wx, wy)` where `inExclusiveFn(world)` is true.
+ * Returns `s` in label-local units (same as `xSweepL`): world point `(wx + cos θ·s, wy + sin θ·s)`.
+ * Uses the inside run that contains `s = 0` when possible; otherwise the run whose midpoint is nearest 0.
+ */
+function spectrumExclusiveSweepSpanAlongWord(wx, wy, cosT, sinT, rFinal, inExclusiveFn) {
+  const step = Math.max(rFinal * 0.028, 0.45);
+  const span = 3.6 * rFinal;
+  const samples = [];
+  for (let s = -span; s <= span; s += step) {
+    const inside = inExclusiveFn(wx + cosT * s, wy + sinT * s);
+    samples.push({ s, inside });
+  }
+  const runs = [];
+  let i = 0;
+  while (i < samples.length) {
+    if (!samples[i].inside) {
+      i++;
+      continue;
+    }
+    let j = i;
+    while (j < samples.length && samples[j].inside) j++;
+    runs.push({ xLeft: samples[i].s, xRight: samples[j - 1].s });
+    i = j;
+  }
+  if (runs.length === 0) return null;
+  const hit0 = runs.find((r) => r.xLeft <= 0 && r.xRight >= 0);
+  if (hit0) return hit0;
+  return runs.reduce((a, b) =>
+    Math.abs((a.xLeft + a.xRight) / 2) <= Math.abs((b.xLeft + b.xRight) / 2) ? a : b,
+  );
+}
+
+/** Ping-pong `xSweepL` along [xLeft,xRight] for normalized time `u` in [0,1); `sweepFrac` is the sweep portion of the cycle. */
+function spectrumReaderSweepLocal(u, sweepFrac, xLeft, xRight) {
+  const inSweep = u < sweepFrac;
+  let xSweepL;
+  let sweepForwardHalf = false;
+  if (inSweep) {
+    const tSweep = u / sweepFrac;
+    if (tSweep < 0.5) {
+      sweepForwardHalf = true;
+      xSweepL = lerp(xLeft, xRight, tSweep * 2);
+    } else {
+      xSweepL = lerp(xRight, xLeft, (tSweep - 0.5) * 2);
+    }
+  } else {
+    xSweepL = xLeft;
+  }
+  return { xSweepL, inSweep, sweepForwardHalf };
+}
+
+/**
+ * Static **spectrum** label + vertical opaque black scan bars in spectrum-exclusive lobe (item 2.5 slide 3).
+ * Same scan interaction as Still **05** phrase lines: **glitch dots** on overlap only — no per-letter underline or drift.
+ * **Spectrum** glyphs are **black** (`fill(0, 255)`). Sweep ping-pongs left→right→left along the label baseline in the lobe.
+ * Uses `millis()` so motion stays smooth while gallery loop resets; relies on global `loop()` on frame 4.
+ */
+function drawSeg45SpectrumReaderSpectrumLabel(targets, rFinal, ls, wx, wy, theta, vennTextPx, word, frame4Cam) {
+  const chars = Array.from(word);
+  const n = chars.length;
+  const tun = spectrumReaderTuning();
+  const cycleMs = tun.cycleMs;
+  const cycleT = millis() % cycleMs;
+  const u = cycleT / cycleMs;
+  const sweepFrac = SPECTRUM_READER_SWEEP_FRAC;
+  const ringOutWorld = spectrumReaderScanSpectrumRingOutsetWorld(ls, frame4Cam.camZoom);
+  const inEx = (px, py) => isSpectrumExclusiveReaderScanClip(px, py, targets, rFinal, ringOutWorld);
+
+  push();
+  translate(wx, wy);
+  rotate(theta);
+  textAlign(CENTER, CENTER);
+  textSize(vennTextPx);
+  if (uiFont) textFont(uiFont);
+  let tw = 0;
+  for (let i = 0; i < n; i++) {
+    tw += textWidth(chars[i]);
+  }
+  const centers = [];
+  let run = -tw / 2;
+  for (let i = 0; i < n; i++) {
+    const cw = textWidth(chars[i]);
+    centers.push(run + cw / 2);
+    run += cw;
+  }
+  const cosT = Math.cos(theta);
+  const sinT = Math.sin(theta);
+  const lobeSpan = spectrumExclusiveSweepSpanAlongWord(wx, wy, cosT, sinT, rFinal, inEx);
+  const xLeft = lobeSpan ? lobeSpan.xLeft : -tw / 2 - 4 * ls;
+  const xRight = lobeSpan ? lobeSpan.xRight : tw / 2 + 4 * ls;
+  const xSweepL = spectrumReaderSweepLocal(u, sweepFrac, xLeft, xRight).xSweepL;
+
+  const slowCycleMs = cycleMs * SPECTRUM_READER_SLOW_BAR_CYCLE_MUL;
+  const uSlow = (millis() % slowCycleMs) / slowCycleMs;
+  const slowSweep = spectrumReaderSweepLocal(uSlow, sweepFrac, xLeft, xRight);
+  const xSweepLSlow = slowSweep.xSweepL;
+
+  const xScanWorld = wx + cosT * xSweepL;
+  const yScanWorld = wy + sinT * xSweepL;
+  const xScanWorldSlow = wx + cosT * xSweepLSlow;
+  const yScanWorldSlow = wy + sinT * xSweepLSlow;
+  pop();
+
+  const scanScrSlow = spectrumReaderWorldToScreen(xScanWorldSlow, yScanWorldSlow, frame4Cam);
+  drawSpectrumExclusiveVerticalScanScreen(
+    scanScrSlow.x,
+    ls,
+    SPECTRUM_READER_SCAN_STROKE_SLOW_LS,
+    inEx,
+    frame4Cam,
+  );
+
+  const scanScr = spectrumReaderWorldToScreen(xScanWorld, yScanWorld, frame4Cam);
+  spectrumReaderScanBarsScreen = [
+    { x: scanScrSlow.x, half: (SPECTRUM_READER_SCAN_STROKE_SLOW_LS * ls) / 2 },
+    { x: scanScr.x, half: (SPECTRUM_READER_SCAN_STROKE_LS * ls) / 2 },
+  ];
+  drawSpectrumExclusiveVerticalScanScreen(scanScr.x, ls, SPECTRUM_READER_SCAN_STROKE_LS, inEx, frame4Cam);
+
+  push();
+  translate(wx, wy);
+  rotate(theta);
+  textAlign(CENTER, CENTER);
+  textSize(vennTextPx);
+  if (uiFont) textFont(uiFont);
+  for (let i = 0; i < n; i++) {
+    const gx = centers[i];
+    noStroke();
+    push();
+    translate(gx, 0);
+    fill(0, 255);
+    text(chars[i], 0, 0);
+    pop();
+  }
+  pop();
+
+  drawSpectrumReaderWordScanGlitchDots(frame4Cam, wx, wy, theta, ls, vennTextPx, chars, centers, 255);
 }
 
 /** Screen-space; centered in projected speck-exclusive width (not full canvas). */
@@ -116,7 +655,7 @@ function drawPost2ExclusiveDescription(ls, centerScreenX, centerScreenY, maxWidt
   const ty = Math.max(pad, Math.min(height - pad - boxH, centerScreenY - boxH / 2));
 
   textAlign(CENTER, CENTER);
-  fill(255);
+  fill(specGallery1Or15InkTypography() ? 0 : 255);
   noStroke();
   textSize(16 * ls);
   textLeading(20 * ls);
@@ -245,6 +784,13 @@ let sequenceStartMs = 0;
 let galleryAnimStartMs = 0;
 let galleryLastFrame = 0;
 let galleryTextStartMs = 0;
+/** Item 2.7 slide 23: millis() when sediment finished draining; POST2 outro fade, then loop. */
+let galleryLive23OutroStartMs = 0;
+
+/** Per frame: both reader scan strips in screen space for glitch dots — `[{ x, half }, …]`; `null` after `draw()` clears. */
+let spectrumReaderScanBarsScreen = null;
+/** Reused offscreen buffer for Still 05 glitch dots (white-fill mask). */
+let spectrumPhraseGlitchMaskBuffer = null;
 
 const ENABLE_SPECK_DRAG = false;
 
@@ -569,6 +1115,22 @@ function smootherstep(t) {
   return t * t * t * (t * (t * 6 - 15) + 10);
 }
 
+/** easeInExpo — https://easings.net/#easeInExpo (slow start, fast end). */
+function easeInExpo(t) {
+  t = clamp01(t);
+  if (t <= 0) return 0;
+  if (t >= 1) return 1;
+  return Math.pow(2, 10 * t - 10);
+}
+
+/** easeOutExpo — https://easings.net/#easeOutExpo (fast start, slow end). */
+function easeOutExpo(t) {
+  t = clamp01(t);
+  if (t <= 0) return 0;
+  if (t >= 1) return 1;
+  return 1 - Math.pow(2, -10 * t);
+}
+
 function screenToWorld(mx, my, cam) {
   // In gallery camera: translate(cx, cam.screenY); scale(cam.zoom); translate(-cam.x, -cam.y)
   const cx = width / 2;
@@ -762,6 +1324,43 @@ function isInsideSpeckExclusive(px, py, targets, rFinal) {
   return true;
 }
 
+/** Item 2.5 sediment tiles match red debug rects (`drawCell` × `drawCell` centered on the same grid). */
+function post2SedimentParticleTouchesAllowed(p, s, targets, rFinal) {
+  if (!s.redCoverageSediment) return isInsideSpeckExclusive(p.x, p.y, targets, rFinal);
+  const half = s.drawCell * 0.51;
+  const c0 = Math.floor((p.x - s.minX) / s.cell);
+  const r0 = Math.floor((p.y - s.minY) / s.cell);
+  for (let dr = -1; dr <= 1; dr++) {
+    for (let dc = -1; dc <= 1; dc++) {
+      const c = c0 + dc;
+      const r = r0 + dr;
+      if (c < 0 || r < 0 || c >= s.cols || r >= s.rows) continue;
+      if (!s.allowed[r * s.cols + c]) continue;
+      const cx = s.minX + c * s.cell;
+      const cy = s.minY + r * s.cell;
+      if (Math.abs(p.x - cx) <= half && Math.abs(p.y - cy) <= half) return true;
+    }
+  }
+  return false;
+}
+
+function renderPost2SpeckExclusiveSedimentMask(p5, targets, rFinal) {
+  if (!post2Sediment?.coverageMaskG) return renderSolidSpeckExclusive(p5, targets, rFinal);
+  const g = ensurePost2SolidInkLayer(p5);
+  const ctx = g.drawingContext;
+  ctx.save();
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.clearRect(0, 0, g.width, g.height);
+  g.noStroke();
+  g.fill(0);
+  g.rect(0, 0, g.width, g.height);
+  ctx.globalCompositeOperation = 'destination-in';
+  g.image(post2Sediment.coverageMaskG, 0, 0);
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.restore();
+  return g;
+}
+
 /** Horizontal center and half-width of speck-exclusive (black) region at world `py`, or null if empty. */
 function speckExclusiveSpanWorldAtY(py, targets, rFinal) {
   const T = targets[0];
@@ -782,19 +1381,50 @@ function speckExclusiveSpanWorldAtY(py, targets, rFinal) {
   return { cx: (xMin + xMax) / 2, halfW: (xMax - xMin) / 2 };
 }
 
-function ensurePost2Sediment(p5, targets, rFinal) {
-  const cell = 5; // world px (finer grid = smoother accumulation)
-  const minX = targets[0].x - rFinal;
+function ensurePost2Sediment(p5, targets, rFinal, ls) {
+  const lsEff = ls != null ? ls : (layoutMarginScale || width / LAYOUT_REF_W);
+  const redCoverageSediment = specLiveMotionsDesign();
+
+  let minX;
+  let minY;
+  let cell;
+  let drawCell;
+  let cols;
+  let rows;
+  const wxList = [];
+  const wyList = [];
+
+  if (redCoverageSediment) {
+    const { step, cellDraw, pad } = speckExclusiveRedDebugGridParams(lsEff, rFinal);
+    const c0 = targets[0];
+    minX = c0.x - rFinal - pad;
+    minY = c0.y - rFinal - pad;
+    cell = step;
+    drawCell = cellDraw;
+    const maxX = c0.x + rFinal + pad;
+    const maxY = c0.y + rFinal + pad;
+    for (let wx = minX; wx <= maxX + 1e-8; wx += step) wxList.push(wx);
+    for (let wy = minY; wy <= maxY + 1e-8; wy += step) wyList.push(wy);
+    cols = Math.max(1, wxList.length);
+    rows = Math.max(1, wyList.length);
+  } else {
+    cell = 5;
+    drawCell = 5;
+    minX = targets[0].x - rFinal;
+    minY = targets[0].y - rFinal;
   const maxX = targets[0].x + rFinal;
-  const minY = targets[0].y - rFinal;
   const maxY = targets[0].y + rFinal;
+    cols = Math.max(12, Math.floor((maxX - minX) / cell));
+    rows = Math.max(12, Math.floor((maxY - minY) / cell));
+  }
 
-  const cols = Math.max(12, Math.floor((maxX - minX) / cell));
-  const rows = Math.max(12, Math.floor((maxY - minY) / cell));
-
-  const key = `${Math.round(minX)}|${Math.round(minY)}|${cols}x${rows}|${Math.round(rFinal)}|` +
+  const key = `${redCoverageSediment ? 'L25' : 'LEG'}|${Math.round(minX)}|${Math.round(minY)}|${cols}x${rows}|c${cell}|dc${drawCell}|${Math.round(rFinal)}|` +
     `${Math.round(targets[1].x)}|${Math.round(targets[1].y)}|${Math.round(targets[2].x)}|${Math.round(targets[2].y)}|${width}x${height}|pd${p5.pixelDensity()}`;
-  if (post2Sediment?.key === key) return;
+  if (post2Sediment?.key === key) {
+    patchPost2SedimentRuntimeTuning(post2Sediment);
+    post2Sediment.liveMotions27 = redCoverageSediment && specLiveMotions27();
+    return;
+  }
 
   const allowed = new Uint8Array(cols * rows);
   const filled = new Uint8Array(cols * rows);
@@ -806,11 +1436,11 @@ function ensurePost2Sediment(p5, targets, rFinal) {
   let total = 0;
 
   for (let r = 0; r < rows; r++) {
-    const y = minY + (r + 0.5) * cell;
     let rc = 0;
     const colsInRow = [];
     for (let c = 0; c < cols; c++) {
-      const x = minX + (c + 0.5) * cell;
+      const x = redCoverageSediment ? wxList[c] : minX + (c + 0.5) * cell;
+      const y = redCoverageSediment ? wyList[r] : minY + (r + 0.5) * cell;
       const ok = isInsideSpeckExclusive(x, y, targets, rFinal);
       const idx = r * cols + c;
       if (ok) {
@@ -836,13 +1466,33 @@ function ensurePost2Sediment(p5, targets, rFinal) {
     maskWorldG.clear();
   }
 
+  let coverageMaskG = null;
+  if (redCoverageSediment) {
+    coverageMaskG = p5.createGraphics(width, height);
+    coverageMaskG.pixelDensity(pd);
+    coverageMaskG.clear();
+    coverageMaskG.noStroke();
+    coverageMaskG.fill(255);
+    coverageMaskG.rectMode(CENTER);
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        if (!allowed[r * cols + c]) continue;
+        coverageMaskG.rect(wxList[c], wyList[r], drawCell, drawCell);
+      }
+    }
+    coverageMaskG.rectMode(CORNER);
+  }
+
   post2Sediment = {
     key,
     g,
     maskWorldG,
+    coverageMaskG,
+    redCoverageSediment,
     minX,
     minY,
     cell,
+    drawCell,
     cols,
     rows,
     allowed,
@@ -852,21 +1502,34 @@ function ensurePost2Sediment(p5, targets, rFinal) {
     rowAllowedCols,
     total,
     remaining: total,
-    // fill from bottom up (but bottom of the *allowed region*, not the bounding box)
     scanRow: rows - 1,
     bottomRow: rows - 1,
     startedAtMs: 0,
-    cellsPerParticle: 14,
+    cellsPerParticle: POST2_SEDIMENT_CELLS_PER_PARTICLE,
     particles: [],
     allowedCols,
     gravity: 0.38,
     maxVy: 7.0,
-    spawnPerTick: 2,
+    spawnPerTick: POST2_SEDIMENT_SPAWN_PER_TICK,
+    spawnEveryMs: POST2_SEDIMENT_SPAWN_EVERY_MS,
     lastSpawnMs: 0,
+    lastDrainMs: 0,
     done: false,
+    draining: false,
+    drained: false,
+    drainHoldFrames: 0,
+    liveMotions27: redCoverageSediment && specLiveMotions27(),
+    fillEaseT0: 0,
+    drainEaseT0: 0,
+    drainStartFilled: 0,
+    lastStepPost2Ms: 0,
+    fillSpawnAccumMs: 0,
+    drainGlyphAccumMs: 0,
+    /** Item 2.7: mask has no filled cells; wait for drain glyphs to fall off before `drained`. */
+    drainGridClear: false,
   };
+  patchPost2SedimentRuntimeTuning(post2Sediment);
 
-  // Start at the lowest row that actually has allowed cells.
   while (post2Sediment.scanRow >= 0 && post2Sediment.rowAllowed[post2Sediment.scanRow] === 0) {
     post2Sediment.scanRow--;
   }
@@ -881,6 +1544,176 @@ function sedimentSurfaceRow(s) {
     break;
   }
   return Math.max(0, Math.min(s.rows - 1, s.scanRow));
+}
+
+/** Bottom-up curtain clear: up to `maxCells` filled cells (item 2.5 / 2.7 drain). */
+function post2SedimentDrainClearCells(s, maxCells) {
+  if (!s || maxCells <= 0) return;
+  const clearCell = (r, c) => {
+    const idx = r * s.cols + c;
+    if (!s.filled[idx]) return;
+    s.filled[idx] = 0;
+    s.rowFilled[r]--;
+    s.remaining++;
+  };
+  let k = maxCells;
+  while (k > 0) {
+    let pickR = -1;
+    for (let r = s.rows - 1; r >= 0; r--) {
+      if (s.rowAllowed[r] === 0) continue;
+      const rowBase = r * s.cols;
+      for (let c = 0; c < s.cols; c++) {
+        if (s.filled[rowBase + c]) {
+          pickR = r;
+          break;
+        }
+      }
+      if (pickR >= 0) break;
+    }
+    if (pickR < 0) break;
+
+    const rowBase = pickR * s.cols;
+    const colsFilled = [];
+    for (let c = 0; c < s.cols; c++) {
+      if (s.filled[rowBase + c]) colsFilled.push(c);
+    }
+    if (colsFilled.length === 0) break;
+
+    colsFilled.sort((a, b) => a - b);
+    if (colsFilled.length <= k) {
+      for (let j = 0; j < colsFilled.length; j++) {
+        clearCell(pickR, colsFilled[j]);
+      }
+      k -= colsFilled.length;
+    } else {
+      for (let j = 0; j < k; j++) {
+        clearCell(pickR, colsFilled[j]);
+      }
+      k = 0;
+    }
+  }
+}
+
+function post2SedimentDrainFinalizeIfEmpty(s) {
+  if (!s) return;
+  let anyFilled = false;
+  for (let i = 0; i < s.filled.length; i++) {
+    if (s.filled[i]) {
+      anyFilled = true;
+      break;
+    }
+  }
+  if (!anyFilled) {
+    if (s.liveMotions27) {
+      s.drainGridClear = true;
+      return;
+    }
+    s.drained = true;
+    s.draining = false;
+    s.particles = [];
+  }
+}
+
+/** Item 2.5 slide 1: bottom-up “curtain” drain — same cell budget per tick as fill (`spawnPerTick * cellsPerParticle`); strips whole bottom rows first, then left-to-right on the current bottom row if the budget is smaller than the row. */
+function live25SedimentDrainStep(s) {
+  if (!s || !s.redCoverageSediment || !s.draining || s.drained) return;
+  const now = millis();
+  const every = s.spawnEveryMs != null ? s.spawnEveryMs : POST2_SEDIMENT_SPAWN_EVERY_MS;
+  if (!s.lastDrainMs) s.lastDrainMs = now;
+  if (now - s.lastDrainMs < every) return;
+  s.lastDrainMs = now;
+
+  const sp = Math.max(1, s.spawnPerTick | 0);
+  const cpp = Math.max(1, s.cellsPerParticle | 0);
+  post2SedimentDrainClearCells(s, sp * cpp);
+  post2SedimentDrainFinalizeIfEmpty(s);
+}
+
+/** Item 2.7 slide 1: drain target follows easeOutExpo (fast start — easeInExpo left the mask “stuck” full at t≈0). */
+function live27SedimentDrainStep(s) {
+  if (!s || !s.redCoverageSediment || !s.draining || s.drained) return;
+  if (s.drainGridClear) return;
+  if (!s.drainEaseT0) {
+    s.drainEaseT0 = millis();
+    s.drainStartFilled = s.total - s.remaining;
+  }
+  const u = clamp01((millis() - s.drainEaseT0) / LIVE27_SEDIMENT_EASE_MS);
+  const full0 = Math.max(1, s.drainStartFilled | 0);
+  const targetFilled =
+    u >= 1 ? 0 : Math.max(0, Math.floor((1 - easeOutExpo(u)) * full0));
+  const have = s.total - s.remaining;
+  const needClear = have - targetFilled;
+  if (needClear > 0) {
+    post2SedimentDrainClearCells(s, Math.min(needClear, LIVE27_DRAIN_MAX_CELLS_PER_FRAME));
+  }
+  post2SedimentDrainFinalizeIfEmpty(s);
+}
+
+/**
+ * Spawn one black drain glyph on the **bottom edge** of the filled region (per column: lowest filled row),
+ * with y near the **bottom** of that tile so glyphs peel downward off the black mass — not from random cells
+ * higher in the blob.
+ */
+function live27SpawnDrainGlyphVisual(s) {
+  const bottomEdge = [];
+  for (let c = 0; c < s.cols; c++) {
+    for (let r = s.rows - 1; r >= 0; r--) {
+      const idx = r * s.cols + c;
+      if (s.filled[idx]) {
+        bottomEdge.push({ r, c });
+        break;
+      }
+    }
+  }
+  if (bottomEdge.length === 0) return;
+  const { r, c } = bottomEdge[Math.floor(random(bottomEdge.length))];
+  const x = s.minX + c * s.cell;
+  const cy = s.minY + r * s.cell;
+  const y = cy + s.drawCell * 0.42;
+  s.particles.push({
+    x,
+    y,
+    vy: random(LIVE27_DRAIN_GLYPH_VY_MIN, LIVE27_DRAIN_GLYPH_VY_MAX),
+    ch: 'speck'.charAt(Math.floor(random(5))),
+    drain: true,
+  });
+}
+
+/** Black “speck” glyphs fall downward during drain (same gravity / fall-through as fill phase). */
+function live27DrainParticlesStep(s, dtMs) {
+  if (!s || s.drained) return;
+  const now = millis();
+  const spawnEveryMs = s.spawnEveryMs != null ? s.spawnEveryMs : POST2_SEDIMENT_SPAWN_EVERY_MS;
+  let uDrain = 0;
+  if (s.drainEaseT0) {
+    uDrain = clamp01((now - s.drainEaseT0) / LIVE27_SEDIMENT_EASE_MS);
+  }
+  const ramp = 0.1 + 0.9 * easeOutExpo(uDrain);
+  const interval = Math.max(10, spawnEveryMs / (ramp * LIVE27_DRAIN_GLYPH_SPAWN_MUL));
+
+  s.drainGlyphAccumMs = (s.drainGlyphAccumMs || 0) + dtMs;
+  const dg = Math.max(1, LIVE27_DRAIN_GLYPHS_PER_TICK | 0);
+  while (s.drainGlyphAccumMs >= interval) {
+    s.drainGlyphAccumMs -= interval;
+    for (let i = 0; i < dg; i++) {
+      live27SpawnDrainGlyphVisual(s);
+    }
+  }
+
+  const fallThroughY = s.redCoverageSediment
+    ? s.minY + (s.rows - 1) * s.cell + s.drawCell * 0.5 + 180
+    : s.minY + s.rows * s.cell + 180;
+
+  for (let i = s.particles.length - 1; i >= 0; i--) {
+    const p = s.particles[i];
+    if (!p.drain) {
+      s.particles.splice(i, 1);
+      continue;
+    }
+    p.vy = Math.min(s.maxVy, p.vy + s.gravity * LIVE27_DRAIN_GLYPH_GRAVITY_MUL);
+    p.y += p.vy;
+    if (p.y > fallThroughY) s.particles.splice(i, 1);
+  }
 }
 
 function sedimentFillSomeCells(s, count) {
@@ -930,8 +1763,31 @@ function sedimentFillSomeCells(s, count) {
 }
 
 function stepPost2Sediment(p5, targets, rFinal) {
-  if (!post2Sediment || post2Sediment.done) return;
+  if (!post2Sediment) return;
   const s = post2Sediment;
+  const stepNow = millis();
+  const dtMs = s.lastStepPost2Ms != null ? Math.min(64, Math.max(1, stepNow - s.lastStepPost2Ms)) : 16.67;
+  s.lastStepPost2Ms = stepNow;
+
+  if (s.redCoverageSediment && s.draining) {
+    if (s.liveMotions27) {
+      live27SedimentDrainStep(s);
+      if (!s.drained) {
+        live27DrainParticlesStep(s, dtMs);
+        if (s.drainGridClear && s.particles.length === 0) {
+          s.drained = true;
+          s.draining = false;
+        }
+      }
+    } else {
+      live25SedimentDrainStep(s);
+    }
+    return;
+  }
+  if (s.done) {
+    if (s.redCoverageSediment && s.particles.length) s.particles = [];
+    return;
+  }
 
   // If region is empty, finish immediately.
   if (s.scanRow < 0 || s.total <= 0) {
@@ -940,50 +1796,105 @@ function stepPost2Sediment(p5, targets, rFinal) {
     return;
   }
 
+  if (s.redCoverageSediment && s.liveMotions27 && !s.fillEaseT0) {
+    s.fillEaseT0 = millis();
+  }
+
   const now = millis();
-  const spawnEveryMs = 70;
+  const spawnEveryMs = s.spawnEveryMs != null ? s.spawnEveryMs : POST2_SEDIMENT_SPAWN_EVERY_MS;
+  let spawnInterval = spawnEveryMs;
+  if (s.redCoverageSediment && s.liveMotions27 && s.fillEaseT0) {
+    const uFill = clamp01((now - s.fillEaseT0) / LIVE27_SEDIMENT_EASE_MS);
+    const ramp = 0.1 + 0.9 * easeInExpo(uFill);
+    spawnInterval = Math.max(12, spawnEveryMs / (ramp * LIVE27_FILL_SPAWN_SPEED_MUL));
+  }
+  if (s.redCoverageSediment && s.liveMotions27) {
+    s.fillSpawnAccumMs = (s.fillSpawnAccumMs || 0) + dtMs;
+    while (s.fillSpawnAccumMs >= spawnInterval) {
+      s.fillSpawnAccumMs -= spawnInterval;
+      const sr = sedimentSurfaceRow(s);
+      const colsInRow = s.rowAllowedCols[sr] || s.allowedCols;
+      for (let i = 0; i < s.spawnPerTick; i++) {
+        const c = colsInRow[Math.floor(random(colsInRow.length))] ?? Math.floor(random(s.cols));
+        const x = s.redCoverageSediment ? s.minX + c * s.cell : s.minX + (c + 0.5) * s.cell;
+        const y = s.minY - random(25, 90);
+        const ch = 'speck'.charAt(Math.floor(random(5)));
+        s.particles.push({ x, y, vy: random(0.2, 1.3), ch });
+      }
+    }
+  } else {
   if (!s.lastSpawnMs) s.lastSpawnMs = now;
-  if (now - s.lastSpawnMs >= spawnEveryMs) {
+    if (now - s.lastSpawnMs >= spawnInterval) {
     const sr = sedimentSurfaceRow(s);
     const colsInRow = s.rowAllowedCols[sr] || s.allowedCols;
     for (let i = 0; i < s.spawnPerTick; i++) {
       const c = colsInRow[Math.floor(random(colsInRow.length))] ?? Math.floor(random(s.cols));
-      const x = s.minX + (c + 0.5) * s.cell;
+        const x = s.redCoverageSediment ? s.minX + c * s.cell : s.minX + (c + 0.5) * s.cell;
       const y = s.minY - random(25, 90);
       const ch = 'speck'.charAt(Math.floor(random(5)));
       s.particles.push({ x, y, vy: random(0.2, 1.3), ch });
     }
     s.lastSpawnMs = now;
+    }
   }
 
-  const surfaceY = s.minY + sedimentSurfaceRow(s) * s.cell;
+  const sr = sedimentSurfaceRow(s);
+  const surfaceY = s.redCoverageSediment
+    ? s.minY + sr * s.cell - s.drawCell * 0.5
+    : s.minY + sr * s.cell;
+
+  const fallThroughY = s.redCoverageSediment
+    ? s.minY + (s.rows - 1) * s.cell + s.drawCell * 0.5 + 180
+    : s.minY + s.rows * s.cell + 180;
+
+  let fillBudget =
+    s.redCoverageSediment && s.liveMotions27 ? LIVE27_FILL_MAX_CELLS_PER_FRAME : 1e9;
 
   for (let i = s.particles.length - 1; i >= 0; i--) {
     const p = s.particles[i];
     p.vy = Math.min(s.maxVy, p.vy + s.gravity);
     p.y += p.vy;
 
-    if (p.y > s.minY + s.rows * s.cell + 180) {
+    if (p.y > fallThroughY) {
       s.particles.splice(i, 1);
       continue;
     }
 
-    if (p.y >= surfaceY && isInsideSpeckExclusive(p.x, p.y, targets, rFinal)) {
-      sedimentFillSomeCells(s, s.cellsPerParticle);
+    if (p.y >= surfaceY && post2SedimentParticleTouchesAllowed(p, s, targets, rFinal)) {
+      let fillN = s.cellsPerParticle;
+      if (s.liveMotions27 && s.fillEaseT0) {
+        const uFill = clamp01((now - s.fillEaseT0) / LIVE27_SEDIMENT_EASE_MS);
+        const ramp = 0.35 + 0.65 * easeInExpo(uFill);
+        fillN = Math.max(
+          1,
+          Math.round(s.cellsPerParticle * ramp * LIVE27_FILL_CELLS_LANDING_MUL),
+        );
+      }
+      if (s.liveMotions27) {
+        fillN = Math.min(fillN, Math.max(0, fillBudget));
+        if (fillN < 1) {
+          continue;
+        }
+        fillBudget -= fillN;
+      }
+      sedimentFillSomeCells(s, fillN);
       s.particles.splice(i, 1);
     }
   }
 }
 
-function renderPost2SedimentLayer(p5, targets, rFinal) {
-  if (!post2Sediment) return null;
-  const s = post2Sediment;
+function post2SedimentClearG(s) {
   const g = s.g;
-  const maskW = s.maskWorldG;
   const ctx = g.drawingContext;
   ctx.save();
   ctx.globalCompositeOperation = 'source-over';
   ctx.clearRect(0, 0, g.width, g.height);
+  ctx.restore();
+}
+
+function post2SedimentClearGAndMaskW(s) {
+  post2SedimentClearG(s);
+  const maskW = s.maskWorldG;
   if (maskW) {
     const ctxM = maskW.drawingContext;
     ctxM.save();
@@ -991,15 +1902,35 @@ function renderPost2SedimentLayer(p5, targets, rFinal) {
     ctxM.clearRect(0, 0, maskW.width, maskW.height);
     ctxM.restore();
   }
+  }
 
-  // Solid black fill for already-filled cells (accumulation).
+function post2SedimentDrawFilledCells(s) {
+  const g = s.g;
+  const maskW = s.maskWorldG;
   g.noStroke();
   g.fill(0);
   if (maskW) {
     maskW.noStroke();
     maskW.fill(255);
   }
-  const r0 = Math.max(0, s.scanRow);
+  const r0 = s.redCoverageSediment ? 0 : Math.max(0, s.scanRow);
+  if (s.redCoverageSediment) {
+    g.rectMode(CENTER);
+    if (maskW) maskW.rectMode(CENTER);
+    for (let r = r0; r < s.rows; r++) {
+      const cy = s.minY + r * s.cell;
+      const rowBase = r * s.cols;
+      for (let c = 0; c < s.cols; c++) {
+        const idx = rowBase + c;
+        if (!s.filled[idx]) continue;
+        const cx = s.minX + c * s.cell;
+        g.rect(cx, cy, s.drawCell + 0.9, s.drawCell + 0.9);
+        if (maskW) maskW.rect(cx, cy, s.drawCell + 0.9, s.drawCell + 0.9);
+      }
+    }
+    g.rectMode(CORNER);
+    if (maskW) maskW.rectMode(CORNER);
+  } else {
   for (let r = r0; r < s.rows; r++) {
     const y = s.minY + r * s.cell;
     const rowBase = r * s.cols;
@@ -1009,10 +1940,13 @@ function renderPost2SedimentLayer(p5, targets, rFinal) {
       const x = s.minX + c * s.cell;
       g.rect(x, y, s.cell + 0.9, s.cell + 0.9);
       if (maskW) maskW.rect(x, y, s.cell + 0.9, s.cell + 0.9);
+      }
+    }
     }
   }
 
-  // Falling sediment glyphs above the surface.
+function post2SedimentDrawParticleGlyphs(s) {
+  const g = s.g;
   g.noStroke();
   g.fill(0);
   g.textAlign(CENTER, CENTER);
@@ -1021,23 +1955,55 @@ function renderPost2SedimentLayer(p5, targets, rFinal) {
   for (const p of s.particles) {
     g.text(p.ch, p.x, p.y);
   }
+}
 
-  // Constrain everything to the speck-exclusive region.
+function post2SedimentApplySpeckExclusiveMask(p5, s, targets, rFinal, includeMaskWorld) {
+  const g = s.g;
+  const ctx = g.drawingContext;
+  const maskImg = renderPost2SpeckExclusiveSedimentMask(p5, targets, rFinal);
+  ctx.save();
   ctx.globalCompositeOperation = 'destination-in';
-  g.image(renderSolidSpeckExclusive(p5, targets, rFinal), 0, 0);
+  g.image(maskImg, 0, 0);
   ctx.globalCompositeOperation = 'source-over';
   ctx.restore();
-
-  if (maskW) {
-    const ctxM = maskW.drawingContext;
+  if (includeMaskWorld && s.maskWorldG) {
+    const ctxM = s.maskWorldG.drawingContext;
     ctxM.save();
     ctxM.globalCompositeOperation = 'destination-in';
-    maskW.image(renderSolidSpeckExclusive(p5, targets, rFinal), 0, 0);
+    s.maskWorldG.image(maskImg, 0, 0);
     ctxM.globalCompositeOperation = 'source-over';
     ctxM.restore();
   }
+}
 
-  return g;
+/** Black tile floor only, masked (no falling glyphs). */
+function renderPost2SedimentFloorOnly(p5, targets, rFinal) {
+  if (!post2Sediment) return null;
+  const s = post2Sediment;
+  post2SedimentClearGAndMaskW(s);
+  post2SedimentDrawFilledCells(s);
+  post2SedimentApplySpeckExclusiveMask(p5, s, targets, rFinal, true);
+  return s.g;
+}
+
+/** Falling glyphs only, masked (no tiles). */
+function renderPost2SedimentGlyphsOnly(p5, targets, rFinal) {
+  if (!post2Sediment) return null;
+  const s = post2Sediment;
+  post2SedimentClearG(s);
+  post2SedimentDrawParticleGlyphs(s);
+  post2SedimentApplySpeckExclusiveMask(p5, s, targets, rFinal, false);
+  return s.g;
+}
+
+function renderPost2SedimentLayer(p5, targets, rFinal) {
+  if (!post2Sediment) return null;
+  const s = post2Sediment;
+  post2SedimentClearGAndMaskW(s);
+  post2SedimentDrawFilledCells(s);
+  post2SedimentDrawParticleGlyphs(s);
+  post2SedimentApplySpeckExclusiveMask(p5, s, targets, rFinal, true);
+  return s.g;
 }
 
 function ensureSpeckLettersInitialized(labelCx, labelCy) {
@@ -1166,6 +2132,28 @@ function isExclusiveRegionGeometric(px, py, i, centers, rFinal) {
   return true;
 }
 
+/**
+ * Reader scan clip: same **non‑spectrum** exclusions as **`isExclusiveRegionGeometric(..., 2, ...)`** (other disks at **`rFinal`**),
+ * but spectrum disk radius is **`rFinal + spectrumOutset`** so the bar can reach the **drawn ring** (outer isolated edge).
+ */
+function isSpectrumExclusiveReaderScanClip(px, py, centers, rFinal, spectrumOutset) {
+  const o = Math.max(0, spectrumOutset);
+  const c2 = centers[2];
+  const rSpec2 = (rFinal + o) * (rFinal + o);
+  const r2 = rFinal * rFinal;
+  if (distSq(px, py, c2.x, c2.y) > rSpec2) return false;
+  for (let k = 0; k < centers.length; k++) {
+    if (k === 2) continue;
+    if (distSq(px, py, centers[k].x, centers[k].y) <= r2) return false;
+  }
+  return true;
+}
+
+/** Half the Venn ring stroke in **world** units (matches **`scale(camZoom)`** + **`strokeWeight(SPECTRUM_READER_CLIP_VENN_RING_STROKE_LS * ls)`**). */
+function spectrumReaderScanSpectrumRingOutsetWorld(ls, camZoom) {
+  return (SPECTRUM_READER_CLIP_VENN_RING_STROKE_LS * ls) / (2 * Math.max(camZoom, 1e-4));
+}
+
 /** Speck ∩ spectrum with full `rFinal` disks, excluding the inspect (1) disk (no triple-overlap fill). */
 function isSpeckSpectrumOverlapGeometric(px, py, centers, rFinal) {
   const r2 = rFinal * rFinal;
@@ -1182,6 +2170,15 @@ function isInspectSpectrumOverlapGeometric(px, py, centers, rFinal) {
   const d1 = distSq(px, py, centers[1].x, centers[1].y);
   const d2 = distSq(px, py, centers[2].x, centers[2].y);
   return d1 <= r2 && d2 <= r2 && d0 > r2;
+}
+
+/** Speck ∩ inspect with full `rFinal` disks, excluding the spectrum (2) disk (space-phrase lobe, no triple overlap). */
+function isSpeckInspectOverlapGeometric(px, py, centers, rFinal) {
+  const r2 = rFinal * rFinal;
+  const d0 = distSq(px, py, centers[0].x, centers[0].y);
+  const d1 = distSq(px, py, centers[1].x, centers[1].y);
+  const d2 = distSq(px, py, centers[2].x, centers[2].y);
+  return d0 <= r2 && d1 <= r2 && d2 > r2;
 }
 
 function rotatedRectFits(px, py, theta, w, h, i, centers, r) {
@@ -1307,6 +2304,7 @@ function getFrame5SpeckFx() {
 
 function draw() {
   background(255);
+  spectrumReaderScanBarsScreen = null;
   if (
     typeof window !== 'undefined' &&
     window.__SPEC_LOGO_STILL__ === true
@@ -1320,7 +2318,7 @@ function draw() {
   const cx = width / 2;
   const cy = height / 2;
   const r = 120 * ls;
-  const size = r * 2;
+  const circleSize = r * 2;
 
   const galleryMaxFrame = (typeof window !== 'undefined' && window.__SPEC_GALLERY_MAX_FRAME)
     ? Number(window.__SPEC_GALLERY_MAX_FRAME)
@@ -1401,7 +2399,7 @@ function draw() {
     const speckCenterSpread = vennTargetsSpread[0];
     const zoom2 = 2.35;
     // Put the speck circle in the bottom half (around 75% down).
-    const desiredSpeckCenterY = height * 0.75;
+    const desiredSpeckCenterY = height * 0.80;
     const screen2Y = desiredSpeckCenterY;
 
     // Frame 1 camera (identity)
@@ -1427,9 +2425,29 @@ function draw() {
         loop();
       }
       const motionSegment = (typeof window !== 'undefined' && window.__SPEC_MOTION_SEGMENT__) || '';
+      const liveMd23 =
+        motionSegment === '23' &&
+        typeof window !== 'undefined' &&
+        window.__SPEC_LIVE_MOTIONS_DESIGN__ === true;
+      const liveMd27 = liveMd23 && specLiveMotions27();
+      if ((galleryLastFrame !== 3 || forceRestart) && liveMd23) {
+        post2Sediment = null;
+        galleryLive23OutroStartMs = 0;
+      }
       const elapsed = millis() - galleryAnimStartMs;
       const gallery15ZoomMs = 2000;
-      const gallery15Seg23PhraseMs = 550;
+      const gallery15Seg23PhraseMs = 950;
+      const motionZoomedInStart =
+        typeof window !== 'undefined' && window.__SPEC_MOTION_ZOOMED_IN_START__ === true;
+      const seg23SkipZoom = motionSegment === '23' && motionZoomedInStart;
+      const seg23ZoomDone =
+        motionSegment === '23' && (seg23SkipZoom || elapsed >= gallery15ZoomMs);
+      const seg23Post2FadeElapsed = Math.max(
+        0,
+        motionSegment === '23' ? (seg23SkipZoom ? elapsed : elapsed - gallery15ZoomMs) : 0,
+      );
+      /** Gallery 2.7 slide 2 (`motionZoomedIn=1`): POST2 at full opacity; no fade-in/out; loop when drain ends. */
+      const seg23SkipPost2Fades = liveMd27 && seg23SkipZoom;
       let t;
       let done;
       let post2BelowSpeckAlpha = 0;
@@ -1438,14 +2456,22 @@ function draw() {
         t = 0.45 * p;
         done = p >= 1;
       } else if (motionSegment === '23') {
-        const pZoom = Math.max(0, Math.min(1, elapsed / gallery15ZoomMs));
+        const pZoom = seg23SkipZoom ? 1 : Math.max(0, Math.min(1, elapsed / gallery15ZoomMs));
         t = 0.45 + 0.55 * pZoom;
-        const phraseU =
-          elapsed <= gallery15ZoomMs
-            ? 0
-            : Math.max(0, Math.min(1, (elapsed - gallery15ZoomMs) / gallery15Seg23PhraseMs));
-        post2BelowSpeckAlpha = 255 * smootherstep(phraseU);
-        done = elapsed >= gallery15ZoomMs + gallery15Seg23PhraseMs;
+        if (liveMd23) {
+          post2BelowSpeckAlpha = 0;
+          done = false;
+        } else {
+          const phraseU = seg23SkipZoom
+            ? Math.max(0, Math.min(1, elapsed / gallery15Seg23PhraseMs))
+            : elapsed <= gallery15ZoomMs
+              ? 0
+              : Math.max(0, Math.min(1, (elapsed - gallery15ZoomMs) / gallery15Seg23PhraseMs));
+          post2BelowSpeckAlpha = 255 * smootherstep(phraseU);
+          done = seg23SkipZoom
+            ? elapsed >= gallery15Seg23PhraseMs
+            : elapsed >= gallery15ZoomMs + gallery15Seg23PhraseMs;
+        }
       } else {
         const p = Math.max(0, Math.min(1, elapsed / gallery15ZoomMs));
         t = p;
@@ -1468,6 +2494,98 @@ function draw() {
       computeExclusiveLabelLayout.fixedThetas = FIXED_LABEL_THETAS;
       const curLayouts = computeExclusiveLabelLayout(curTargets, rFinal, WORDS, vennTextPx);
 
+      const g2Slide23Shell =
+        motionSegment === '23' &&
+        typeof window !== 'undefined' &&
+        window.__SPEC_GALLERY2_SHELL__ === true;
+      const g2Slide23VennOutlineA = g2Slide23Shell ? 255 : 220;
+
+      if (liveMd23 && seg23ZoomDone) {
+        ensurePost2Sediment(this, curTargets, rFinal, ls);
+        const s25 = post2Sediment;
+        if (s25?.redCoverageSediment && s25.done && !s25.draining && !s25.drained) {
+          if (LIVE25_DRAIN_HOLD_FRAMES <= 0) {
+            s25.draining = true;
+            const ev = s25.spawnEveryMs != null ? s25.spawnEveryMs : POST2_SEDIMENT_SPAWN_EVERY_MS;
+            s25.lastDrainMs = millis() - ev;
+            if (s25.liveMotions27) {
+              s25.particles = [];
+              s25.drainGlyphAccumMs = 0;
+              s25.fillSpawnAccumMs = 0;
+            }
+          } else {
+            s25.drainHoldFrames = (s25.drainHoldFrames || 0) + 1;
+            if (s25.drainHoldFrames >= LIVE25_DRAIN_HOLD_FRAMES) {
+              s25.draining = true;
+              const ev = s25.spawnEveryMs != null ? s25.spawnEveryMs : POST2_SEDIMENT_SPAWN_EVERY_MS;
+              s25.lastDrainMs = millis() - ev;
+              if (s25.liveMotions27) {
+                s25.particles = [];
+                s25.drainGlyphAccumMs = 0;
+                s25.fillSpawnAccumMs = 0;
+              }
+            }
+          }
+        }
+        stepPost2Sediment(this, curTargets, rFinal);
+      }
+
+      if (motionSegment === '23' && liveMd23) {
+        const zoomDone = seg23ZoomDone;
+        const fillComplete = !!post2Sediment?.done;
+        const drainComplete = !post2Sediment || post2Sediment.drained;
+        if (
+          liveMd27 &&
+          !seg23SkipPost2Fades &&
+          post2Sediment?.redCoverageSediment &&
+          post2Sediment.drained
+        ) {
+          if (!galleryLive23OutroStartMs) galleryLive23OutroStartMs = millis();
+        } else if (!(liveMd27 && post2Sediment?.drained)) {
+          galleryLive23OutroStartMs = 0;
+        }
+        if (liveMd27) {
+          const outroDone = seg23SkipPost2Fades
+            ? true
+            : galleryLive23OutroStartMs > 0 &&
+              millis() - galleryLive23OutroStartMs >= LIVE25_POST2_FADE_OUT_MS;
+          done = zoomDone && fillComplete && drainComplete && outroDone;
+        } else {
+          done = zoomDone && fillComplete && drainComplete;
+        }
+      }
+
+      let seg23Post2Alpha = 255;
+      let seg23ShowPost2 = false;
+      if (motionSegment === '23' && POST2_SHOW_DESCRIPTION && POST2_DESCRIPTION) {
+        seg23ShowPost2 = liveMd23
+          ? seg23ZoomDone
+          : post2BelowSpeckAlpha > 0;
+        seg23Post2Alpha = liveMd23 ? 255 : post2BelowSpeckAlpha;
+        if (liveMd23 && seg23ZoomDone && !seg23SkipPost2Fades) {
+          const tIn = Math.max(0, Math.min(1, seg23Post2FadeElapsed / LIVE25_POST2_FADE_IN_MS));
+          seg23Post2Alpha = 255 * smootherstep(tIn);
+        }
+        if (
+          liveMd23 &&
+          !liveMd27 &&
+          post2Sediment?.redCoverageSediment &&
+          post2Sediment.total > 0 &&
+          (post2Sediment.draining || post2Sediment.drained)
+        ) {
+          const filledN = post2Sediment.total - post2Sediment.remaining;
+          const u = Math.max(0, Math.min(1, filledN / post2Sediment.total));
+          seg23Post2Alpha *= smootherstep(u);
+        }
+        if (liveMd27 && !seg23SkipPost2Fades && galleryLive23OutroStartMs > 0) {
+          const outroU = Math.max(
+            0,
+            Math.min(1, (millis() - galleryLive23OutroStartMs) / LIVE25_POST2_FADE_OUT_MS),
+          );
+          seg23Post2Alpha *= Math.max(0, 1 - smootherstep(outroU));
+        }
+      }
+
       push();
       translate(cx, screenY);
       scale(camZoom);
@@ -1480,15 +2598,51 @@ function draw() {
         noFill();
         ellipse(x, y, vennD, vennD);
         noFill();
-        stroke(0, 220);
+        stroke(0, g2Slide23VennOutlineA);
         strokeWeight(3 * ls);
         strokeJoin(ROUND);
         strokeCap(ROUND);
         ellipse(x, y, vennD, vennD);
       }
 
+      // Live motions: floor → POST2 (2.7: difference vs black tiles) → glyph rain on top.
+      if (liveMd23 && seg23ZoomDone) {
+        const floorG = renderPost2SedimentFloorOnly(this, curTargets, rFinal);
+        if (floorG) {
+          noTint();
+          image(floorG, 0, 0);
+        }
+        if (
+          seg23ShowPost2 &&
+          POST2_SHOW_DESCRIPTION &&
+          POST2_DESCRIPTION
+        ) {
+          const p2wx = curTargets[0].x + curLayouts[0].dx;
+          const p2wy = curTargets[0].y + curLayouts[0].dy;
+          textAlign(CENTER, CENTER);
+          textSize((20 * ls) / camZoom);
+          textLeading((20 * ls) / camZoom);
+          noStroke();
+          if (liveMd27) {
+            blendMode(DIFFERENCE);
+            fill(255, seg23Post2Alpha);
+            text(POST2_DESCRIPTION, p2wx, p2wy + (90 * ls) / camZoom);
+            blendMode(BLEND);
+          } else {
+            fill(255, seg23Post2Alpha);
+            text(POST2_DESCRIPTION, p2wx, p2wy + (90 * ls) / camZoom);
+          }
+        }
+        const glyphG = renderPost2SedimentGlyphsOnly(this, curTargets, rFinal);
+        if (glyphG) {
+          noTint();
+          image(glyphG, 0, 0);
+        }
+      }
+
       if (
         DEBUG_G2_ISOLATED_EXCLUSIVE_FILLS &&
+        DEBUG_G2_SLIDE1_FILL_ALPHA > 0 &&
         motionSegment === '23' &&
         typeof window !== 'undefined' &&
         window.__SPEC_GALLERY2_SHELL__ === true
@@ -1499,6 +2653,7 @@ function draw() {
           rFinal,
           ls,
           0,
+          DEBUG_G2_SLIDE1_FILL_ALPHA,
         );
       }
 
@@ -1507,42 +2662,60 @@ function draw() {
         const y = curTargets[i].y;
         const wx = x + curLayouts[i].dx;
         const wy = y + curLayouts[i].dy;
-        fill(0);
         textAlign(CENTER, CENTER);
         textSize(vennTextPx);
         noStroke();
         push();
         translate(wx, wy);
         rotate(curLayouts[i].theta);
+        // 2.7 slide 1: draw speck after sediment with difference + white so glyphs invert where black fill covers them.
+        if (liveMd27 && i === 0 && seg23ZoomDone) {
+          blendMode(DIFFERENCE);
+          fill(255);
         text(WORDS[i], 0, 0);
+          blendMode(BLEND);
+        } else {
+          fill(0);
+          text(WORDS[i], 0, 0);
+        }
         pop();
       }
       pop();
 
-      if (
-        POST2_SHOW_DESCRIPTION &&
-        POST2_DESCRIPTION &&
-        motionSegment === '23' &&
-        post2BelowSpeckAlpha > 0
-      ) {
+      if (POST2_SHOW_DESCRIPTION && POST2_DESCRIPTION && motionSegment === '23') {
         const speckWx = curTargets[0].x + curLayouts[0].dx;
         const speckWy = curTargets[0].y + curLayouts[0].dy;
         const speckSx = cx + (speckWx - camX) * camZoom;
         const speckSy = screenY + (speckWy - camY) * camZoom;
-        push();
-        resetMatrix();
-        textAlign(CENTER, CENTER);
-        textSize(20 * ls);
-        textLeading(20 * ls);
-        stroke(0, post2BelowSpeckAlpha);
-        strokeWeight(Math.max(1.2, 2 * ls));
-        fill(255, post2BelowSpeckAlpha);
-        text(POST2_DESCRIPTION, speckSx, speckSy + 90 * ls);
-        pop();
+        // liveMd23 POST2 is drawn inside the camera stack before sediment (see above).
+        if (seg23ShowPost2 && !liveMd23) {
+          push();
+          resetMatrix();
+          textAlign(CENTER, CENTER);
+          textSize(20 * ls);
+          textLeading(20 * ls);
+          if (specGallery1Or15InkTypography()) {
+            noStroke();
+            fill(0, seg23Post2Alpha);
+          } else {
+            stroke(0, seg23Post2Alpha);
+            strokeWeight(Math.max(1.2, 2 * ls));
+            fill(255, seg23Post2Alpha);
+          }
+          text(POST2_DESCRIPTION, speckSx, speckSy + 90 * ls);
+          pop();
+        }
       }
 
       galleryLastFrame = galleryFrame;
-      if (done) noLoop();
+      if (specLiveMotionsDesign() && motionSegment === '23' && done) {
+        galleryAnimStartMs = millis();
+        galleryLive23OutroStartMs = 0;
+        post2Sediment = null;
+        loop();
+      } else if (done) {
+        noLoop();
+      }
       return;
     }
 
@@ -1551,6 +2724,8 @@ function draw() {
     if (galleryFrame === 4 && !galleryExtended) {
       const overlapStill = typeof window !== 'undefined' && window.__SPEC_OVERLAP_STILL__ === true;
       const spectrumStill = typeof window !== 'undefined' && window.__SPEC_SPECTRUM_STILL__ === true;
+      const motionSpectrumSettled =
+        typeof window !== 'undefined' && window.__SPEC_MOTION_SPECTRUM_SETTLED__ === true;
       const motionSegment = (typeof window !== 'undefined' && window.__SPEC_MOTION_SEGMENT__) || '';
       const segment34 = motionSegment === '34';
       const segment45 = motionSegment === '45';
@@ -1559,9 +2734,13 @@ function draw() {
       const G34_ROT_MS = 1200;
       const G34_PHRASE_FADE_MS = 500;
       const G45_ROT_MS = 1200;
-      const G45_PHRASE_FADE_MS = 500;
       const seg34Live = segment34 && !overlapStill && !spectrumStill;
       const seg45Live = segment45 && !overlapStill && !spectrumStill;
+      /** Hub **2.7** only: `45` live starts at Still 05 orientation (no rotation lerp); phrase fade only. */
+      const seg45MotionSpectrumSettled =
+        segment45 && specLiveMotions27() && motionSpectrumSettled && seg45Live;
+      /** Item **2.5** slide 3 and hub **2.7** slides **4–5** (live `45`). */
+      const seg45SpectrumReaderFx = specLiveMotionsDesign() && segment45 && seg45Live;
       const targets = vennTargetsSpread;
       const c0 = targets[0];
       const c1 = targets[1];
@@ -1648,14 +2827,30 @@ function draw() {
               : Math.max(0, Math.min(1, (frame4Elapsed - G34_ROT_MS) / G34_PHRASE_FADE_MS));
           seg34OverlapPhraseAlpha = 255 * smootherstep(fadeU);
         } else if (seg45Live) {
-          const rotP = Math.min(1, frame4Elapsed / G45_ROT_MS);
-          easeAnim = easeInOutCubic(rotP);
-          tAnim = Math.min(1, frame4Elapsed / (G45_ROT_MS + G45_PHRASE_FADE_MS));
-          const fadeU =
-            frame4Elapsed <= G45_ROT_MS
-              ? 0
-              : Math.max(0, Math.min(1, (frame4Elapsed - G45_ROT_MS) / G45_PHRASE_FADE_MS));
-          seg45SpectrumPhraseAlpha = 255 * smootherstep(fadeU);
+          if (seg45MotionSpectrumSettled) {
+            easeAnim = 1;
+            tAnim = Math.min(1, frame4Elapsed / SPECTRUM_STILL_PHRASE_FADE_MS);
+            const fadeU = Math.max(
+              0,
+              Math.min(1, frame4Elapsed / SPECTRUM_STILL_PHRASE_FADE_MS),
+            );
+            seg45SpectrumPhraseAlpha = 255 * smootherstep(fadeU);
+          } else {
+            const rotP = Math.min(1, frame4Elapsed / G45_ROT_MS);
+            easeAnim = easeInOutCubic(rotP);
+            tAnim = Math.min(1, frame4Elapsed / (G45_ROT_MS + SPECTRUM_STILL_PHRASE_FADE_MS));
+            const fadeU =
+              frame4Elapsed <= G45_ROT_MS
+                ? 0
+                : Math.max(
+                    0,
+                    Math.min(
+                      1,
+                      (frame4Elapsed - G45_ROT_MS) / SPECTRUM_STILL_PHRASE_FADE_MS,
+                    ),
+                  );
+            seg45SpectrumPhraseAlpha = 255 * smootherstep(fadeU);
+          }
         } else {
           tAnim = Math.max(0, Math.min(1, frame4Elapsed / 1200));
           easeAnim = easeInOutCubic(tAnim);
@@ -1738,7 +2933,11 @@ function draw() {
         const camYTarget = graphCY + sa * ox + ca * oy;
         if (segment45) {
           // Live motion 4: start at Still 04 endpoint, transition to Still 05 endpoint.
-          const rotT45 = seg45Live ? Math.min(1, frame4Elapsed / G45_ROT_MS) : tAnim;
+          const rotT45 = seg45MotionSpectrumSettled
+            ? 1
+            : seg45Live
+              ? Math.min(1, frame4Elapsed / G45_ROT_MS)
+              : tAnim;
           const e45 = easeInOutCubic(rotT45);
           const prStart = phraseRotAt(rotEnd);
           sceneAngle = lerp(rotEnd, sceneAngleTarget, e45);
@@ -1768,7 +2967,7 @@ function draw() {
         noFill();
         ellipse(x, y, vennD, vennD);
         noFill();
-        stroke(0, 220);
+        stroke(0, specGallery2Shell() ? 255 : 220);
         strokeWeight(3 * ls);
         strokeJoin(ROUND);
         strokeCap(ROUND);
@@ -1809,6 +3008,7 @@ function draw() {
           rFinal,
           ls,
           2,
+          DEBUG_G2_SLIDE45_FILL_ALPHA,
         );
       }
 
@@ -1817,6 +3017,28 @@ function draw() {
         const y = targets[i].y;
         const wx = x + curLayouts[i].dx;
         const wy = y + curLayouts[i].dy;
+        if (seg45SpectrumReaderFx && i === 2) {
+          drawSeg45SpectrumReaderSpectrumLabel(
+            targets,
+            rFinal,
+            ls,
+            wx,
+            wy,
+            curLayouts[i].theta,
+            vennTextPx,
+            WORDS[2],
+            {
+              cx,
+              screenY,
+              camZoom,
+              camX,
+              camY,
+              graphCX,
+              graphCY,
+              sceneAngle,
+            },
+          );
+        } else {
         fill(0);
         textAlign(CENTER, CENTER);
         textSize(vennTextPx);
@@ -1826,6 +3048,7 @@ function draw() {
         rotate(curLayouts[i].theta);
         text(WORDS[i], 0, 0);
         pop();
+        }
       }
 
       pop();
@@ -1855,14 +3078,20 @@ function draw() {
           textAlign(CENTER, CENTER);
           textSize(20 * ls);
           textLeading(20 * ls);
-          stroke(0);
-          strokeWeight(Math.max(1.2, 2 * ls));
-          fill(255);
+          if (specGallery1Or15InkTypography()) {
+            noStroke();
+            fill(0);
+          } else {
+            stroke(0);
+            strokeWeight(Math.max(1.2, 2 * ls));
+            fill(255);
+          }
           text(POST2_DESCRIPTION, 0, 0);
           pop();
         } else {
         const useSpectrumPhrases =
-          spectrumStill || (segment45 && (!seg45Live || frame4Elapsed >= G45_ROT_MS));
+          spectrumStill ||
+          (segment45 && (!seg45Live || frame4Elapsed >= G45_ROT_MS || seg45MotionSpectrumSettled));
         const phrases = useSpectrumPhrases ? SPECTRUM_STILL_PHRASES : SPECK_SPECTRUM_OVERLAP_PHRASES;
         const spectrumLabelToPhraseGap = 74 * ls; // match Still 03 speck->phrase gap
         const baseScr = { x: cx, y: cy };
@@ -1918,13 +3147,45 @@ function draw() {
           const spectrumSx = cx + ((graphCX + ca * ox - sa * oy) - camX) * camZoom;
           const spectrumSy = screenY + ((graphCY + sa * ox + ca * oy) - camY) * camZoom;
           const firstLineY = spectrumSy - spectrumLabelToPhraseGap - n * lineStep;
+          /** Hub **2.7** slide **5** (`motionSpectrumSettled`): all lines black fill + white stroke; white glitch dots only on scanned glyphs. */
+          const spectrumPhrases27Slide5Invert = seg45MotionSpectrumSettled;
+          const phraseSw = specLiveMotions27()
+            ? Math.max(0.75, 1.05 * ls)
+            : Math.max(1.2, 2 * ls);
+          textSize(phraseSizeScreen);
+          const g1g15Ink = specGallery1Or15InkTypography();
+          if (spectrumPhrases27Slide5Invert) {
           textAlign(CENTER, TOP);
-          stroke(0, seg45SpectrumPhraseAlpha);
-          strokeWeight(Math.max(1.2, 2 * ls));
-          fill(255, seg45SpectrumPhraseAlpha);
+            stroke(255, seg45SpectrumPhraseAlpha);
+            strokeWeight(phraseSw);
+            fill(0, seg45SpectrumPhraseAlpha);
           for (let pi = 0; pi < n; pi++) {
             text(phrases[pi], spectrumSx, firstLineY + pi * lineStep);
           }
+        } else {
+            textAlign(CENTER, TOP);
+            if (g1g15Ink) {
+              noStroke();
+              fill(0, seg45SpectrumPhraseAlpha);
+            } else {
+              stroke(0, seg45SpectrumPhraseAlpha);
+              strokeWeight(phraseSw);
+              fill(255, seg45SpectrumPhraseAlpha);
+            }
+            for (let pi = 0; pi < n; pi++) {
+              text(phrases[pi], spectrumSx, firstLineY + pi * lineStep);
+            }
+          }
+          drawSpectrumStillPhrasesScanGlitchDots(
+            spectrumSx,
+            firstLineY,
+            lineStep,
+            phrases,
+            phraseSizeScreen,
+            seg45SpectrumPhraseAlpha,
+            ls,
+            spectrumPhrases27Slide5Invert || g1g15Ink,
+          );
         } else {
           const rotatingPhraseCenter = () => {
             const ca = Math.cos(sceneAngle);
@@ -1946,7 +3207,7 @@ function draw() {
           if (segment45) {
             translate(phraseCtr.x, phraseCtr.y);
             rotate(sceneAngle - rotEnd);
-            for (let pi = 0; pi < n; pi++) {
+          for (let pi = 0; pi < n; pi++) {
               text(phrases[pi], 0, (pi - mid) * lineStep);
             }
           } else {
@@ -1965,7 +3226,18 @@ function draw() {
       }
 
       galleryLastFrame = galleryFrame;
-      if (tAnim >= 1) noLoop();
+      const live25LoopF4 =
+        specLiveMotionsDesign() &&
+        (segment34 || segment45) &&
+        !overlapStill &&
+        !spectrumStill &&
+        tAnim >= 1;
+      if (live25LoopF4) {
+        galleryAnimStartMs = millis();
+        loop();
+      } else if (tAnim >= 1) {
+        noLoop();
+      }
       return;
     }
 
@@ -2229,7 +3501,7 @@ function draw() {
         noFill();
         ellipse(x, y, vennD, vennD);
         noFill();
-        stroke(0, 220);
+        stroke(0, specGallery2Shell() ? 255 : 220);
         strokeWeight(3 * ls);
         strokeJoin(ROUND);
         strokeCap(ROUND);
@@ -2362,9 +3634,14 @@ function draw() {
           const gap = 74 * ls;
           const firstLineY = inspectSy - gap - n * lineStep;
           textAlign(CENTER, TOP);
-          stroke(0, seg67InspectPhraseAlpha);
-          strokeWeight(Math.max(1.2, 2 * ls));
-          fill(255, seg67InspectPhraseAlpha);
+          if (specGallery1Or15InkTypography()) {
+            noStroke();
+            fill(0, seg67InspectPhraseAlpha);
+          } else {
+            stroke(0, seg67InspectPhraseAlpha);
+            strokeWeight(Math.max(1.2, 2 * ls));
+            fill(255, seg67InspectPhraseAlpha);
+          }
           for (let pi = 0; pi < n; pi++) {
             text(phrases[pi], inspectSx, firstLineY + pi * lineStep);
           }
@@ -2381,9 +3658,14 @@ function draw() {
           const firstLineY = spectrumSy - gap - n * lineStep;
           const midSp = (n - 1) / 2;
           const stackCy = firstLineY + (n * lineStep) / 2;
-          stroke(0, 255);
-          strokeWeight(Math.max(1.2, 2 * ls));
-          fill(255);
+          if (specGallery1Or15InkTypography()) {
+            noStroke();
+            fill(0);
+          } else {
+            stroke(0, 255);
+            strokeWeight(Math.max(1.2, 2 * ls));
+            fill(255);
+          }
           if (segment56 && seg56Live) {
             const angleStartSpectrum = -curLayouts[2].theta;
             push();
@@ -2394,7 +3676,7 @@ function draw() {
               text(phrases[pi], 0, (pi - midSp) * lineStep);
             }
             pop();
-          } else {
+        } else {
             textAlign(CENTER, TOP);
             for (let pi = 0; pi < n; pi++) {
               text(phrases[pi], spectrumSx, firstLineY + pi * lineStep);
@@ -2422,7 +3704,7 @@ function draw() {
             push();
             translate(pairCtr.x, pairCtr.y);
             rotate(sceneAngle - aStart67);
-            for (let pi = 0; pi < n; pi++) {
+          for (let pi = 0; pi < n; pi++) {
               text(phrases[pi], 0, (pi - mid) * lineStep);
             }
             pop();
@@ -2440,7 +3722,18 @@ function draw() {
       }
 
       galleryLastFrame = galleryFrame;
-      if (tAnim >= 1) noLoop();
+      const live25LoopF5 =
+        specLiveMotionsDesign() &&
+        (segment56 || segment67) &&
+        !pairStill &&
+        !inspectStill &&
+        tAnim >= 1;
+      if (live25LoopF5) {
+        galleryAnimStartMs = millis();
+        loop();
+      } else if (tAnim >= 1) {
+        noLoop();
+      }
       return;
     }
 
@@ -2588,11 +3881,36 @@ function draw() {
         noFill();
         ellipse(x, y, vennD, vennD);
         noFill();
-        stroke(0, 220);
+        stroke(0, specGallery2Shell() ? 255 : 220);
         strokeWeight(3 * ls);
         strokeJoin(ROUND);
         strokeCap(ROUND);
         ellipse(x, y, vennD, vennD);
+      }
+
+      if (
+        DEBUG_G2_ISOLATED_EXCLUSIVE_FILLS &&
+        segment78 &&
+        typeof window !== 'undefined' &&
+        window.__SPEC_GALLERY2_SHELL__ === true
+      ) {
+        const c0 = targets[0];
+        const c1 = targets[1];
+        const c2 = targets[2];
+        const padG = rFinal * 1.05;
+        const gx0 = Math.min(c0.x, c1.x, c2.x) - padG;
+        const gx1 = Math.max(c0.x, c1.x, c2.x) + padG;
+        const gy0 = Math.min(c0.y, c1.y, c2.y) - padG;
+        const gy1 = Math.max(c0.y, c1.y, c2.y) + padG;
+        debugG2DrawFillGridWorldRect(
+          (wx, wy) => isSpeckInspectOverlapGeometric(wx, wy, targets, rFinal),
+          gx0,
+          gx1,
+          gy0,
+          gy1,
+          rFinal,
+          ls,
+        );
       }
 
       for (let i = 0; i < 3; i++) {
@@ -2678,9 +3996,14 @@ function draw() {
           // angleStart for slide 7 is -theta so at t=0 this rotation is 0 (horizontal); it tracks scene during lerp.
           const phraseRotScreen = angle + curLayouts[1].theta;
           textAlign(CENTER, TOP);
-          stroke(0, 255);
-          strokeWeight(Math.max(1.2, 2 * ls));
-          fill(255);
+          if (specGallery1Or15InkTypography()) {
+            noStroke();
+            fill(0);
+          } else {
+            stroke(0, 255);
+            strokeWeight(Math.max(1.2, 2 * ls));
+            fill(255);
+          }
           push();
           translate(inspectSx, inspectSy);
           rotate(phraseRotScreen);
@@ -2690,31 +4013,31 @@ function draw() {
           }
           pop();
         } else {
-          textAlign(CENTER, CENTER);
+        textAlign(CENTER, CENTER);
           fill(0, seg78SpacePhraseAlpha);
-          noStroke();
-          const mid = (n - 1) / 2;
-          const lobeCenterScreenXAtY = (sy) => {
-            if (!spaceStill) return baseScr.x;
-            const samples = 160;
-            let minX = Infinity;
-            let maxX = -Infinity;
-            for (let si = 0; si <= samples; si++) {
-              const sx = (width * si) / samples;
-              const w = screenToUnrotWorldPhrase(sx, sy);
-              if (!inSpeckInspectOnlyLobe(w.x, w.y)) continue;
-              if (sx < minX) minX = sx;
-              if (sx > maxX) maxX = sx;
-            }
-            return Number.isFinite(minX) && Number.isFinite(maxX) && maxX > minX
-              ? (minX + maxX) * 0.5
-              : baseScr.x;
-          };
+        noStroke();
+        const mid = (n - 1) / 2;
+        const lobeCenterScreenXAtY = (sy) => {
+          if (!spaceStill) return baseScr.x;
+          const samples = 160;
+          let minX = Infinity;
+          let maxX = -Infinity;
+          for (let si = 0; si <= samples; si++) {
+            const sx = (width * si) / samples;
+            const w = screenToUnrotWorldPhrase(sx, sy);
+            if (!inSpeckInspectOnlyLobe(w.x, w.y)) continue;
+            if (sx < minX) minX = sx;
+            if (sx > maxX) maxX = sx;
+          }
+          return Number.isFinite(minX) && Number.isFinite(maxX) && maxX > minX
+            ? (minX + maxX) * 0.5
+            : baseScr.x;
+        };
           const spacePhraseXShift = segment78 ? G78_SPACE_PHRASE_X_NUDGE_LS * ls : 0;
-          for (let pi = 0; pi < n; pi++) {
-            const lineY = baseScr.y + (pi - mid) * lineStep;
+        for (let pi = 0; pi < n; pi++) {
+          const lineY = baseScr.y + (pi - mid) * lineStep;
             const lineX = lobeCenterScreenXAtY(lineY) + spacePhraseXShift;
-            text(phrases[pi], lineX, lineY);
+          text(phrases[pi], lineX, lineY);
           }
         }
         pop();
@@ -2724,7 +4047,17 @@ function draw() {
       if (typeof window !== 'undefined' && !spaceStill) {
         window.__SPEC_FRAME6_END__ = { camX, camY, camZoom, screenY, angle };
       }
-      if (tAnim >= 1) noLoop();
+      const live25LoopF6 =
+        specLiveMotionsDesign() &&
+        segment78 &&
+        !spaceStill &&
+        tAnim >= 1;
+      if (live25LoopF6) {
+        galleryAnimStartMs = millis();
+        loop();
+      } else if (tAnim >= 1) {
+        noLoop();
+      }
       return;
     }
 
@@ -2792,7 +4125,7 @@ function draw() {
         if (!inkStartMs) {
           inkStartMs = millis();
           if (useSediment) {
-            ensurePost2Sediment(this, curTargets, rFinal);
+            ensurePost2Sediment(this, curTargets, rFinal, ls);
           } else if (inkAvailable()) {
             window.SpecInk.ensureLayer(this, width, height);
             window.SpecInk.init(this, curTargets, rFinal);
@@ -2818,7 +4151,7 @@ function draw() {
         noFill();
         ellipse(x, y, vennD, vennD);
         noFill();
-        stroke(0, 220);
+        stroke(0, specGallery2Shell() ? 255 : 220);
         strokeWeight(3 * ls);
         strokeJoin(ROUND);
         strokeCap(ROUND);
@@ -2828,7 +4161,7 @@ function draw() {
       // Fill layer (speck-exclusive region) — behind text
       if (done) {
         if (useSediment) {
-          ensurePost2Sediment(this, curTargets, rFinal);
+          ensurePost2Sediment(this, curTargets, rFinal, ls);
           stepPost2Sediment(this, curTargets, rFinal);
           const layer = renderPost2SedimentLayer(this, curTargets, rFinal);
           if (layer) {
@@ -2839,7 +4172,7 @@ function draw() {
           if (inkDone) {
             // Fully solid black at the end (remove any tiny gaps).
             noTint();
-            image(renderSolidSpeckExclusive(this, curTargets, rFinal), 0, 0);
+            image(renderPost2SpeckExclusiveSedimentMask(this, curTargets, rFinal), 0, 0);
           }
 
           // Frame 5: blink-and-miss "speck" flash when sediment first starts accumulating.
@@ -2951,8 +4284,8 @@ function draw() {
       window.__SPEC_FRAME5_END__ = null;
     }
 
-      const motionSegment = (typeof window !== 'undefined' && window.__SPEC_MOTION_SEGMENT__) || '';
-      const segment89 = galleryExtended && galleryFrame === 2 && motionSegment === '89';
+    const motionSegment = (typeof window !== 'undefined' && window.__SPEC_MOTION_SEGMENT__) || '';
+    const segment89 = galleryExtended && galleryFrame === 2 && motionSegment === '89';
       let f6end = typeof window !== 'undefined' ? window.__SPEC_FRAME6_END__ : null;
       if (segment89 && (!f6end || typeof f6end.camX !== 'number')) {
         f6end = computeSpacePhrasesStillFrame6End(vennTargetsSpread, rFinal, cy, width, height, ls);
@@ -3066,7 +4399,7 @@ function draw() {
       ellipse(x, y, vennD, vennD);
 
       noFill();
-      stroke(0, 220);
+      stroke(0, specGallery2Shell() ? 255 : 220);
       strokeWeight(3 * ls);
       strokeJoin(ROUND);
       strokeCap(ROUND);
@@ -3302,10 +4635,15 @@ function draw() {
 
         textAlign(CENTER, CENTER);
         textSize(styleSize);
-        stroke(0);
-        strokeWeight(Math.max(0.9, 1.5 * ls * zoomScale));
-        stroke(0, 255 * fadeIndividual);
-        fill(255, 255 * fadeIndividual);
+        if (specGallery1Or15InkTypography()) {
+          noStroke();
+          fill(0, 255 * fadeIndividual);
+        } else {
+          stroke(0);
+          strokeWeight(Math.max(0.9, 1.5 * ls * zoomScale));
+          stroke(0, 255 * fadeIndividual);
+          fill(255, 255 * fadeIndividual);
+        }
         placeRelativeToLabel(speckWx, speckWy, finalLayouts[0].theta, 'below', POST2_DESCRIPTION);
         placeRelativeToLabel(inspectWx, inspectWy, finalLayouts[1].theta, 'above', INSPECT_STILL_PHRASES[0]);
         placeRelativeToLabel(spectrumWx, spectrumWy, finalLayouts[2].theta, 'above', SPECTRUM_STILL_PHRASES[0]);
@@ -3344,9 +4682,14 @@ function draw() {
       textAlign(CENTER, CENTER);
       textSize(20 * ls);
       textLeading(20 * ls);
-      stroke(0);
-      strokeWeight(Math.max(1.2, 2 * ls));
-      fill(255);
+      if (specGallery1Or15InkTypography()) {
+        noStroke();
+        fill(0);
+      } else {
+        stroke(0);
+        strokeWeight(Math.max(1.2, 2 * ls));
+        fill(255);
+      }
       text(POST2_DESCRIPTION, speckLabelSx, speckLabelSy + 90 * ls);
       pop();
     }
@@ -3365,8 +4708,8 @@ function draw() {
 
     noStroke();
     noFill();
-    ellipse(cx, cy, size, size);
-    drawInkCircleOutline(cx, cy, size / 2, strokeAlpha * 1.6, 3, 101);
+    ellipse(cx, cy, circleSize, circleSize);
+    drawInkCircleOutline(cx, cy, circleSize / 2, strokeAlpha * 1.6, 3, 101);
 
     const specAlpha = easeOutCubic((t - DURATION_FADE * 0.4) / (DURATION_FADE * 0.6));
     const specOpacity = 255 * specAlpha;
@@ -3393,8 +4736,8 @@ function draw() {
     translate(-cx, -cy);
     noStroke();
     noFill();
-    ellipse(cx, cy, size, size);
-    drawInkCircleOutline(cx, cy, size / 2, 120, 3 / circleZoom, 102);
+    ellipse(cx, cy, circleSize, circleSize);
+    drawInkCircleOutline(cx, cy, circleSize / 2, 120, 3 / circleZoom, 102);
     pop();
 
     // Words zoom to 1.5x (reach max at same time as circle)
@@ -3443,8 +4786,8 @@ function draw() {
     translate(-cx, -cy);
     noStroke();
     noFill();
-    ellipse(cx, cy, size, size);
-    drawInkCircleOutline(cx, cy, size / 2, 120, 3 / CIRCLE_ZOOM_MAX, 103);
+    ellipse(cx, cy, circleSize, circleSize);
+    drawInkCircleOutline(cx, cy, circleSize / 2, 120, 3 / CIRCLE_ZOOM_MAX, 103);
     pop();
 
     // Words stay at 1.5x while inside phase 3
@@ -3534,8 +4877,8 @@ function draw() {
 
     noStroke();
     noFill();
-    ellipse(cx, cy, size, size);
-    drawInkCircleOutline(cx, cy, size / 2, 120, 3 / circleZoom, 104);
+    ellipse(cx, cy, circleSize, circleSize);
+    drawInkCircleOutline(cx, cy, circleSize / 2, 120, 3 / circleZoom, 104);
     pop();
 
     // Words zoom out from 1.5x -> 1.0x (same timing)
@@ -3566,8 +4909,8 @@ function draw() {
     // Phase 5: hold at original scale (1.0x) before Venn split
     noStroke();
     noFill();
-    ellipse(cx, cy, size, size);
-    drawInkCircleOutline(cx, cy, size / 2, 120, 3, 105);
+    ellipse(cx, cy, circleSize, circleSize);
+    drawInkCircleOutline(cx, cy, circleSize / 2, 120, 3, 105);
 
     // Keep words at the zoom-out end scale (0.5x) during the hold
     push();
@@ -3617,13 +4960,13 @@ function draw() {
     // Draw the original circle fading out
     noStroke();
     noFill();
-    ellipse(cx, cy, size, size);
-    drawInkCircleOutline(cx, cy, size / 2, 255 * (1 - fade), 3, 106);
+    ellipse(cx, cy, circleSize, circleSize);
+    drawInkCircleOutline(cx, cy, circleSize / 2, 255 * (1 - fade), 3, 106);
 
     for (let i = 0; i < 3; i++) {
       const x = lerp(cx, vennTargets[i].x, ease);
       const y = lerp(cy, vennTargets[i].y, ease);
-      const d = lerp(size, vennD, ease);
+      const d = lerp(circleSize, vennD, ease);
 
       const rC = lerp(baseColor[0], vennColors[i][0], ease);
       const gC = lerp(baseColor[1], vennColors[i][1], ease);
