@@ -472,7 +472,7 @@
     });
 
     window.addEventListener('hashchange', () => {
-      // Parent shells (e.g. post1-2-gallery-2) often change only the URL fragment on the same
+      // Parent shells (e.g. galleries/post1-2-gallery-2) often change only the URL fragment on the same
       // iframe src; the document may not reload, so we must sync from the hash even when inner
       // navigation is locked (arrows/keys stay disabled via gotoFrame).
       const f = readFrameFromHash();
@@ -487,6 +487,9 @@
     if (LOCK_MODE) document.body.classList.add('is-locked');
     updateUI();
   </script>
+  <script src="../js/modules/easing.js"></script>
+  <script src="../js/modules/vennGeometry.js"></script>
+  <script src="../js/modules/spectrumReader.js"></script>
   <script src="../js/sketch.js"></script>
 </body>
 

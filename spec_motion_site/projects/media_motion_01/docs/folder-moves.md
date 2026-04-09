@@ -11,160 +11,168 @@
 ## ~~Step 1 — Create `js/modules/`~~ ✓ Done
 ## ~~Step 2 — Move `docs/`~~ ✓ Done
 ## ~~Step 3 — Move `assets/spec-logo.png`~~ ✓ Done
-`sketch.js` path already updated to `'../assets/spec-logo.png'`
+## ~~Step 4 — Commit~~ ✓ Done
+## ~~Step 5 — Delete `about/`~~ ✓ Done
+## ~~Step 6 — Move `fonts/`~~ ✓ Done
+## ~~Step 7 — Group stills into `html/stills/`~~ ✓ Done
+## ~~Step 8 — Group redirects into `html/redirects/`~~ ✓ Done
 
 ---
 
-## Step 4 — Commit what you have now
-**Risk: none · Do this before anything else**
-
-Moves from steps 2 and 3 are sitting uncommitted. If something breaks later
-you have no clean rollback point.
+## Current `html/` state
 
 ```
-git add spec_motion_site/projects/media_motion_01/assets/
-git add spec_motion_site/projects/media_motion_01/docs/
-git add spec_motion_site/projects/media_motion_01/js/sketch.js
-git rm spec_motion_site/assets/spec-logo.png
-git rm spec_motion_site/docs/MOTION_POST_1_2.md
-git commit -m "move assets and docs into media_motion_01"
+html/
+├── liquidfun-phases/          ✓ grouped
+├── redirects/                 ✓ grouped
+├── stills/                    ✓ grouped
+├── motion-post-1-2-doc.html   stays — referenced by post1-2.html
+├── overview.html              stays — core hub entry
+├── post1-2-gallery-2.html     → move to galleries/
+├── post1-2-gallery-2-5.html   → move to galleries/
+├── post1-2-gallery-2-7.html   → move to galleries/
+├── post1-2-gallery-3.html     → move to galleries/ (not linked from hub — direct URL only)
+├── post1-2-gallery-4.html     → move to galleries/
+├── post1-2.html               stays — core hub
+├── post1.html                 stays — linked from overview
+├── post2-gallery.html         stays — loaded by almost everything
+├── speck-dev-char-fall.html   → move to dev/
+├── speck.html                 → move to dev/
+└── venn-liquidfun-composite.html → move to dev/
 ```
 
 ---
 
-## Step 5 — Clean up `about/`
-**Risk: none**
+## Step 9 — Move dev pages into `html/dev/`
+**Risk: low · Nothing external links to these**
 
-`spec_motion_site/about/` only has a `.gitkeep` placeholder.
-Delete the folder if the about page isn't being built soon.
-
+Files to move:
 ```
-spec_motion_site/about/   ←  delete
+html/speck.html                    →  html/dev/speck.html
+html/speck-dev-char-fall.html      →  html/dev/speck-dev-char-fall.html
+html/venn-liquidfun-composite.html →  html/dev/venn-liquidfun-composite.html
 ```
 
-If you plan to build it, leave it and add `index.html` when ready.
+For each file after moving, update the internal JS paths from `../js/` to `../../js/`:
+
+`speck.html` — 2 lines:
+```html
+<script src="../../js/inkBlob.js"></script>
+<script src="../../js/speckSketch.js"></script>
+```
+
+`speck-dev-char-fall.html` — 1 line:
+```html
+<script src="../../js/canvasFit4x5.js"></script>
+```
+
+`venn-liquidfun-composite.html` — 4 lines:
+```html
+<script src="../../js/canvasFit4x5.js"></script>
+<script src="../../js/lib/liquidfun.js"></script>
+<script src="../../js/speckLiquidFun.js"></script>
+<script src="../../js/vennLiquidFunComposite.js"></script>
+```
+
+Move and fix one file at a time. Open each in browser to verify it loads.
 
 ---
 
-## Step 6 — Move `fonts/` into `media_motion_01/`
-**Risk: medium · Path updates: 3 JS files**
+## Step 10 — Move gallery shells into `html/galleries/`
+**Risk: medium · Requires updates in post1-2.html and inside each shell**
 
-`fonts/` lives at site level but is only ever used by `media_motion_01`.
-Moving it closer to what uses it makes the project self-contained.
-
-Move:
+Files to move:
 ```
-spec_motion_site/fonts/   →   spec_motion_site/projects/media_motion_01/fonts/
+html/post1-2-gallery-2.html    →  html/galleries/post1-2-gallery-2.html
+html/post1-2-gallery-2-5.html  →  html/galleries/post1-2-gallery-2-5.html
+html/post1-2-gallery-2-7.html  →  html/galleries/post1-2-gallery-2-7.html
+html/post1-2-gallery-3.html    →  html/galleries/post1-2-gallery-3.html
+html/post1-2-gallery-4.html    →  html/galleries/post1-2-gallery-4.html
 ```
 
-Then update the font URL helper in all three JS files.
-Each file has the same pattern — find this line:
+**Inside each gallery shell**, update 2 paths (one level deeper now):
+```html
+<!-- before -->
+<link rel="stylesheet" href="../css/galleryShell.css" />
+<script src="../js/galleryShell.js"></script>
 
+<!-- after -->
+<link rel="stylesheet" href="../../css/galleryShell.css" />
+<script src="../../js/galleryShell.js"></script>
+```
+
+**Also inside each shell**, the `initSpecGallery` slide srcs reference sibling HTML files.
+Add `../` prefix to any relative HTML path:
 ```js
-return '../fonts/' + file;
+// before
+src: 'post2-gallery.html?...'
+src: 'liquidfun-phases/phase-4-speck-word.html...'
+
+// after
+src: '../post2-gallery.html?...'
+src: '../liquidfun-phases/phase-4-speck-word.html...'
 ```
 
-And the dynamic URL line:
-```js
-return new URL(`../../../fonts/${file}`, src).href;
+**In `post1-2.html`**, update the 4 data-src values:
+```html
+<!-- before -->
+data-src="post1-2-gallery-2.html"
+data-src="post1-2-gallery-2-5.html"
+data-src="post1-2-gallery-2-7.html"
+data-src="post1-2-gallery-4.html"
+
+<!-- after -->
+data-src="galleries/post1-2-gallery-2.html"
+data-src="galleries/post1-2-gallery-2-5.html"
+data-src="galleries/post1-2-gallery-2-7.html"
+data-src="galleries/post1-2-gallery-4.html"
 ```
 
-Change both to:
-```js
-return '../fonts/' + file;                          // stays the same
-return new URL(`../fonts/${file}`, src).href;       // remove two ../
-```
-
-Files to update:
-- `js/sketch.js`
-- `js/speckSketch.js`
-- `js/vennLiquidFunComposite.js`
-
-Test: open any gallery page and confirm text renders with the custom font.
+Move one gallery file at a time, fix its paths, test it loads, then do the next.
+Update `post1-2.html` only after all 5 gallery shells are moved and verified.
 
 ---
 
-## Step 7 — Group stills pages into `html/stills/`
-**Risk: medium · Path updates: several files**
-
-These four files are all stills-only views with no outbound links of their own:
+## Final `html/` state after steps 9 and 10
 
 ```
-html/post2-stills-grid-1.html
-html/post2-stills-grid-2.html
-html/post2-gallery-stills.html
-html/post2-gallery-1-5.html
-```
-
-Move them to:
-```
-html/stills/post2-stills-grid-1.html
-html/stills/post2-stills-grid-2.html
-html/stills/post2-gallery-stills.html
-html/stills/post2-gallery-1-5.html
-```
-
-After moving, update references in:
-- `post1-2.html` — references `post2-gallery-stills.html` and `post2-gallery-1-5.html`
-  as `data-src` values (change to `stills/post2-gallery-stills.html` etc.)
-- Each moved file's own internal iframe srcs that reference `post2-gallery.html`
-  — add `../` prefix since they're now one level deeper
-
-Do one file at a time. Test after each.
-
----
-
-## Step 8 — Group redirect aliases into `html/redirects/`
-**Risk: low · Path updates: none needed**
-
-These files are pure redirect shims — they contain no content of their own:
-
-```
-html/testing.html    →  redirects to post1-2.html
-html/post2.html      →  redirects to post1-2.html
-```
-
-Move them to:
-```
-html/redirects/testing.html
-html/redirects/post2.html
-```
-
-The redirect targets inside them use relative paths (`post1-2.html`).
-After moving one level deeper, update the target to `../post1-2.html`.
-
-Nothing else in the project links to these files so no other updates needed.
-
----
-
-## Hold — fonts (if skipping Step 6)
-**Risk: medium · Path updates: 3 JS files**
-
-If you skip Step 6, leave fonts here:
-```
-spec_motion_site/fonts/   ←  leave for now
+html/
+├── dev/
+│   ├── speck.html
+│   ├── speck-dev-char-fall.html
+│   └── venn-liquidfun-composite.html
+├── galleries/
+│   ├── post1-2-gallery-2.html
+│   ├── post1-2-gallery-2-5.html
+│   ├── post1-2-gallery-2-7.html
+│   ├── post1-2-gallery-3.html
+│   └── post1-2-gallery-4.html
+├── liquidfun-phases/
+├── redirects/
+├── stills/
+├── motion-post-1-2-doc.html
+├── overview.html
+├── post1-2.html
+├── post1.html
+└── post2-gallery.html
 ```
 
 ---
 
 ## Do not touch
-Too many cross-references. Leave until there is a specific reason.
-
 ```
-projects/media_motion_01/html/post1-2.html        ←  core hub, 400+ lines, many internal links
-projects/media_motion_01/html/post2-gallery.html  ←  loaded as iframe by many files
-projects/media_motion_01/js/sketch.js             ←  loaded by almost every page
-projects/media_motion_01/js/galleryShell.js       ←  loaded by every gallery
-projects/media_motion_01/css/galleryShell.css     ←  loaded by every gallery
+html/post1-2.html              ←  core hub, 700+ lines, many internal links
+html/post2-gallery.html        ←  loaded as iframe by almost every page
+js/sketch.js                   ←  loaded by almost every page
+js/galleryShell.js             ←  loaded by every gallery
+css/galleryShell.css           ←  loaded by every gallery
 ```
 
 ---
 
 ## For reference — redirect files (keep these)
-These are intentional short-URL aliases, not junk:
-
 ```
-spec_motion_site/post1-2.html          →  projects/media_motion_01/html/post1-2.html
-html/testing.html                      →  post1-2.html
-html/post2.html                        →  post1-2.html
+spec_motion_site/post1-2.html              →  projects/.../html/post1-2.html
+html/redirects/testing.html               →  ../post1-2.html
+html/redirects/post2.html                 →  ../post1-2.html
 ```

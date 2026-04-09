@@ -229,85 +229,17 @@ function debugG2DrawFillGridWorldRect(testFn, minX, maxX, minY, maxY, rFinal, ls
   pop();
 }
 
-/**
- * Inverse of gallery frame-4 stack: translate(cx,screenY) scale(camZoom) translate(-camX,-camY),
- * then rotate(sceneAngle) about (graphCX, graphCY).
- */
-function spectrumReaderScreenToWorld(sx, sy, cam) {
-  const rx = (sx - cam.cx) / cam.camZoom + cam.camX;
-  const ry = (sy - cam.screenY) / cam.camZoom + cam.camY;
-  const ca = Math.cos(cam.sceneAngle);
-  const sa = Math.sin(cam.sceneAngle);
-  const ddx = rx - cam.graphCX;
-  const ddy = ry - cam.graphCY;
-  const ox = ca * ddx + sa * ddy;
-  const oy = -sa * ddx + ca * ddy;
-  return { x: cam.graphCX + ox, y: cam.graphCY + oy };
-}
-
-function spectrumReaderWorldToScreen(wx, wy, cam) {
-  const ca = Math.cos(cam.sceneAngle);
-  const sa = Math.sin(cam.sceneAngle);
-  const ox = wx - cam.graphCX;
-  const oy = wy - cam.graphCY;
-  const rx = cam.graphCX + ca * ox - sa * oy;
-  const ry = cam.graphCY + sa * ox + ca * oy;
-  return {
-    x: cam.cx + (rx - cam.camX) * cam.camZoom,
-    y: cam.screenY + (ry - cam.camY) * cam.camZoom,
-  };
-}
-
-/** True if any reader scan strip (center **`x`**, half-width **`half`**) overlaps screen-x interval `[left, right]`. */
-function spectrumReaderScanStripsHitScreenXInterval(left, right, strips) {
-  if (!strips || strips.length === 0) return false;
-  for (let i = 0; i < strips.length; i++) {
-    const x = strips[i].x;
-    const h = strips[i].half;
-    if (!(x + h < left || x - h > right)) return true;
-  }
-  return false;
-}
-
-/**
- * Contiguous canvas-vertical segments where a thick vertical stroke fits inside the exclusive region.
- * When `halfStrokePx` > 0, both horizontal edges of the stroke (center ± half width) must test inside;
- * otherwise only the center column is used (thin stroke).
- */
-function spectrumExclusiveVerticalRunsAtScreenX(scanSx, inExclusiveFn, yStepPx, cam, halfStrokePx) {
-  const h = typeof halfStrokePx === 'number' && halfStrokePx > 0 ? halfStrokePx : 0;
-  const runs = [];
-  let runStart = null;
-  for (let sy = 0; sy <= height; sy += yStepPx) {
-    let inside;
-    if (h > 0) {
-      const wl = spectrumReaderScreenToWorld(scanSx - h, sy, cam);
-      const wr = spectrumReaderScreenToWorld(scanSx + h, sy, cam);
-      inside = inExclusiveFn(wl.x, wl.y) && inExclusiveFn(wr.x, wr.y);
-    } else {
-      const w = spectrumReaderScreenToWorld(scanSx, sy, cam);
-      inside = inExclusiveFn(w.x, w.y);
-    }
-    if (inside && runStart === null) runStart = sy;
-    if (!inside && runStart !== null) {
-      runs.push({ y0: runStart, y1: sy });
-      runStart = null;
-    }
-  }
-  if (runStart !== null) runs.push({ y0: runStart, y1: height });
-  return runs;
-}
-
 /** Canvas-vertical scan at fixed screen X; clip to spectrum-exclusive lobe via inverse projection. Filled rects (sharp edges), not stroked lines with round caps. */
 function drawSpectrumExclusiveVerticalScanScreen(scanScreenX, ls, strokeLs, inExclusiveFn, cam) {
   const strokePx = strokeLs * ls;
   const halfStrokePx = strokePx / 2;
-  const runs = spectrumExclusiveVerticalRunsAtScreenX(
+  const runs = SpectrumReader.verticalRunsAtScreenX(
     scanScreenX,
     inExclusiveFn,
     SPECTRUM_READER_SCAN_SCREEN_STEP_PX,
     cam,
     halfStrokePx,
+    height,
   );
   push();
   resetMatrix();
@@ -354,7 +286,7 @@ function drawSpectrumStillPhrasesScanGlitchDots(
     const lineLx = spectrumSx - twLine / 2;
     const ty = firstLineY + pi * lineStep;
     const lineRx = spectrumSx + twLine / 2;
-    if (!spectrumReaderScanStripsHitScreenXInterval(lineLx, lineRx, strips)) continue;
+    if (!SpectrumReader.scanStripsHitInterval(lineLx, lineRx, strips)) continue;
 
     let penX = lineLx;
     const chars = Array.from(line);
@@ -364,7 +296,7 @@ function drawSpectrumStillPhrasesScanGlitchDots(
       const chLx = penX;
       const chRx = penX + cw;
       penX += cw;
-      if (!spectrumReaderScanStripsHitScreenXInterval(chLx, chRx, strips)) continue;
+      if (!SpectrumReader.scanStripsHitInterval(chLx, chRx, strips)) continue;
 
       const w = Math.max(4, Math.ceil(cw));
       const h = Math.max(4, Math.ceil(Math.min(lineStep * 0.92, phraseSizeScreen * 1.48)));
@@ -457,11 +389,11 @@ function drawSpectrumReaderWordScanGlitchDots(
       const ly = corners[c][1];
       const wxW = wx + lx * cosT - ly * sinT;
       const wyW = wy + lx * sinT + ly * cosT;
-      const scr = spectrumReaderWorldToScreen(wxW, wyW, cam);
+      const scr = SpectrumReader.worldToScreen(wxW, wyW, cam);
       if (scr.x < minSX) minSX = scr.x;
       if (scr.x > maxSX) maxSX = scr.x;
     }
-    if (!spectrumReaderScanStripsHitScreenXInterval(minSX, maxSX, strips)) continue;
+    if (!SpectrumReader.scanStripsHitInterval(minSX, maxSX, strips)) continue;
 
     const w = Math.max(4, Math.ceil(cw));
     if (
@@ -497,65 +429,13 @@ function drawSpectrumReaderWordScanGlitchDots(
       const localY = gy + (ryCl + 0.5 - hBuf / 2);
       const wxW = wx + localX * cosT - localY * sinT;
       const wyW = wy + localX * sinT + localY * cosT;
-      const dotScr = spectrumReaderWorldToScreen(wxW, wyW, cam);
+      const dotScr = SpectrumReader.worldToScreen(wxW, wyW, cam);
       fill(255, phraseAlpha);
       circle(dotScr.x, dotScr.y, dotD);
       placed++;
     }
   }
   pop();
-}
-
-/**
- * Left/right extent along the label baseline through `(wx, wy)` where `inExclusiveFn(world)` is true.
- * Returns `s` in label-local units (same as `xSweepL`): world point `(wx + cos θ·s, wy + sin θ·s)`.
- * Uses the inside run that contains `s = 0` when possible; otherwise the run whose midpoint is nearest 0.
- */
-function spectrumExclusiveSweepSpanAlongWord(wx, wy, cosT, sinT, rFinal, inExclusiveFn) {
-  const step = Math.max(rFinal * 0.028, 0.45);
-  const span = 3.6 * rFinal;
-  const samples = [];
-  for (let s = -span; s <= span; s += step) {
-    const inside = inExclusiveFn(wx + cosT * s, wy + sinT * s);
-    samples.push({ s, inside });
-  }
-  const runs = [];
-  let i = 0;
-  while (i < samples.length) {
-    if (!samples[i].inside) {
-      i++;
-      continue;
-    }
-    let j = i;
-    while (j < samples.length && samples[j].inside) j++;
-    runs.push({ xLeft: samples[i].s, xRight: samples[j - 1].s });
-    i = j;
-  }
-  if (runs.length === 0) return null;
-  const hit0 = runs.find((r) => r.xLeft <= 0 && r.xRight >= 0);
-  if (hit0) return hit0;
-  return runs.reduce((a, b) =>
-    Math.abs((a.xLeft + a.xRight) / 2) <= Math.abs((b.xLeft + b.xRight) / 2) ? a : b,
-  );
-}
-
-/** Ping-pong `xSweepL` along [xLeft,xRight] for normalized time `u` in [0,1); `sweepFrac` is the sweep portion of the cycle. */
-function spectrumReaderSweepLocal(u, sweepFrac, xLeft, xRight) {
-  const inSweep = u < sweepFrac;
-  let xSweepL;
-  let sweepForwardHalf = false;
-  if (inSweep) {
-    const tSweep = u / sweepFrac;
-    if (tSweep < 0.5) {
-      sweepForwardHalf = true;
-      xSweepL = lerp(xLeft, xRight, tSweep * 2);
-    } else {
-      xSweepL = lerp(xRight, xLeft, (tSweep - 0.5) * 2);
-    }
-  } else {
-    xSweepL = xLeft;
-  }
-  return { xSweepL, inSweep, sweepForwardHalf };
 }
 
 /**
@@ -573,7 +453,7 @@ function drawSeg45SpectrumReaderSpectrumLabel(targets, rFinal, ls, wx, wy, theta
   const u = cycleT / cycleMs;
   const sweepFrac = SPECTRUM_READER_SWEEP_FRAC;
   const ringOutWorld = spectrumReaderScanSpectrumRingOutsetWorld(ls, frame4Cam.camZoom);
-  const inEx = (px, py) => isSpectrumExclusiveReaderScanClip(px, py, targets, rFinal, ringOutWorld);
+  const inEx = (px, py) => VennGeometry.isSpectrumExclusiveReaderScanClip(px, py, targets, rFinal, ringOutWorld);
 
   push();
   translate(wx, wy);
@@ -594,14 +474,14 @@ function drawSeg45SpectrumReaderSpectrumLabel(targets, rFinal, ls, wx, wy, theta
   }
   const cosT = Math.cos(theta);
   const sinT = Math.sin(theta);
-  const lobeSpan = spectrumExclusiveSweepSpanAlongWord(wx, wy, cosT, sinT, rFinal, inEx);
+  const lobeSpan = SpectrumReader.sweepSpanAlongWord(wx, wy, cosT, sinT, rFinal, inEx);
   const xLeft = lobeSpan ? lobeSpan.xLeft : -tw / 2 - 4 * ls;
   const xRight = lobeSpan ? lobeSpan.xRight : tw / 2 + 4 * ls;
-  const xSweepL = spectrumReaderSweepLocal(u, sweepFrac, xLeft, xRight).xSweepL;
+  const xSweepL = SpectrumReader.sweepLocal(u, sweepFrac, xLeft, xRight).xSweepL;
 
   const slowCycleMs = cycleMs * SPECTRUM_READER_SLOW_BAR_CYCLE_MUL;
   const uSlow = (millis() % slowCycleMs) / slowCycleMs;
-  const slowSweep = spectrumReaderSweepLocal(uSlow, sweepFrac, xLeft, xRight);
+  const slowSweep = SpectrumReader.sweepLocal(uSlow, sweepFrac, xLeft, xRight);
   const xSweepLSlow = slowSweep.xSweepL;
 
   const xScanWorld = wx + cosT * xSweepL;
@@ -610,7 +490,7 @@ function drawSeg45SpectrumReaderSpectrumLabel(targets, rFinal, ls, wx, wy, theta
   const yScanWorldSlow = wy + sinT * xSweepLSlow;
   pop();
 
-  const scanScrSlow = spectrumReaderWorldToScreen(xScanWorldSlow, yScanWorldSlow, frame4Cam);
+  const scanScrSlow = SpectrumReader.worldToScreen(xScanWorldSlow, yScanWorldSlow, frame4Cam);
   drawSpectrumExclusiveVerticalScanScreen(
     scanScrSlow.x,
     ls,
@@ -619,7 +499,7 @@ function drawSeg45SpectrumReaderSpectrumLabel(targets, rFinal, ls, wx, wy, theta
     frame4Cam,
   );
 
-  const scanScr = spectrumReaderWorldToScreen(xScanWorld, yScanWorld, frame4Cam);
+  const scanScr = SpectrumReader.worldToScreen(xScanWorld, yScanWorld, frame4Cam);
   spectrumReaderScanBarsScreen = [
     { x: scanScrSlow.x, half: (SPECTRUM_READER_SCAN_STROKE_SLOW_LS * ls) / 2 },
     { x: scanScr.x, half: (SPECTRUM_READER_SCAN_STROKE_LS * ls) / 2 },
@@ -1093,42 +973,6 @@ function exportSequence() {
   recordStopTimeout = setTimeout(() => {
     if (recorder && recorder.state !== 'inactive') recorder.stop();
   }, Math.ceil(TOTAL * 1000) + 250);
-}
-
-// --- easing helpers (for smoother, more dynamic motion) ---
-function clamp01(x) {
-  return Math.max(0, Math.min(1, x));
-}
-
-function easeOutCubic(t) {
-  t = clamp01(t);
-  return 1 - Math.pow(1 - t, 3);
-}
-
-function easeInOutCubic(t) {
-  t = clamp01(t);
-  return (t < 0.5) ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
-}
-
-function smootherstep(t) {
-  t = clamp01(t);
-  return t * t * t * (t * (t * 6 - 15) + 10);
-}
-
-/** easeInExpo — https://easings.net/#easeInExpo (slow start, fast end). */
-function easeInExpo(t) {
-  t = clamp01(t);
-  if (t <= 0) return 0;
-  if (t >= 1) return 1;
-  return Math.pow(2, 10 * t - 10);
-}
-
-/** easeOutExpo — https://easings.net/#easeOutExpo (fast start, slow end). */
-function easeOutExpo(t) {
-  t = clamp01(t);
-  if (t <= 0) return 0;
-  if (t >= 1) return 1;
-  return 1 - Math.pow(2, -10 * t);
 }
 
 function screenToWorld(mx, my, cam) {
@@ -1637,10 +1481,10 @@ function live27SedimentDrainStep(s) {
     s.drainEaseT0 = millis();
     s.drainStartFilled = s.total - s.remaining;
   }
-  const u = clamp01((millis() - s.drainEaseT0) / LIVE27_SEDIMENT_EASE_MS);
+  const u = Easing.clamp01((millis() - s.drainEaseT0) / LIVE27_SEDIMENT_EASE_MS);
   const full0 = Math.max(1, s.drainStartFilled | 0);
   const targetFilled =
-    u >= 1 ? 0 : Math.max(0, Math.floor((1 - easeOutExpo(u)) * full0));
+    u >= 1 ? 0 : Math.max(0, Math.floor((1 - Easing.easeOutExpo(u)) * full0));
   const have = s.total - s.remaining;
   const needClear = have - targetFilled;
   if (needClear > 0) {
@@ -1686,9 +1530,9 @@ function live27DrainParticlesStep(s, dtMs) {
   const spawnEveryMs = s.spawnEveryMs != null ? s.spawnEveryMs : POST2_SEDIMENT_SPAWN_EVERY_MS;
   let uDrain = 0;
   if (s.drainEaseT0) {
-    uDrain = clamp01((now - s.drainEaseT0) / LIVE27_SEDIMENT_EASE_MS);
+    uDrain = Easing.clamp01((now - s.drainEaseT0) / LIVE27_SEDIMENT_EASE_MS);
   }
-  const ramp = 0.1 + 0.9 * easeOutExpo(uDrain);
+  const ramp = 0.1 + 0.9 * Easing.easeOutExpo(uDrain);
   const interval = Math.max(10, spawnEveryMs / (ramp * LIVE27_DRAIN_GLYPH_SPAWN_MUL));
 
   s.drainGlyphAccumMs = (s.drainGlyphAccumMs || 0) + dtMs;
@@ -1804,8 +1648,8 @@ function stepPost2Sediment(p5, targets, rFinal) {
   const spawnEveryMs = s.spawnEveryMs != null ? s.spawnEveryMs : POST2_SEDIMENT_SPAWN_EVERY_MS;
   let spawnInterval = spawnEveryMs;
   if (s.redCoverageSediment && s.liveMotions27 && s.fillEaseT0) {
-    const uFill = clamp01((now - s.fillEaseT0) / LIVE27_SEDIMENT_EASE_MS);
-    const ramp = 0.1 + 0.9 * easeInExpo(uFill);
+    const uFill = Easing.clamp01((now - s.fillEaseT0) / LIVE27_SEDIMENT_EASE_MS);
+    const ramp = 0.1 + 0.9 * Easing.easeInExpo(uFill);
     spawnInterval = Math.max(12, spawnEveryMs / (ramp * LIVE27_FILL_SPAWN_SPEED_MUL));
   }
   if (s.redCoverageSediment && s.liveMotions27) {
@@ -1863,8 +1707,8 @@ function stepPost2Sediment(p5, targets, rFinal) {
     if (p.y >= surfaceY && post2SedimentParticleTouchesAllowed(p, s, targets, rFinal)) {
       let fillN = s.cellsPerParticle;
       if (s.liveMotions27 && s.fillEaseT0) {
-        const uFill = clamp01((now - s.fillEaseT0) / LIVE27_SEDIMENT_EASE_MS);
-        const ramp = 0.35 + 0.65 * easeInExpo(uFill);
+        const uFill = Easing.clamp01((now - s.fillEaseT0) / LIVE27_SEDIMENT_EASE_MS);
+        const ramp = 0.35 + 0.65 * Easing.easeInExpo(uFill);
         fillN = Math.max(
           1,
           Math.round(s.cellsPerParticle * ramp * LIVE27_FILL_CELLS_LANDING_MUL),
@@ -2093,58 +1937,12 @@ function mouseReleased() {
   }
 }
 
-function distSq(ax, ay, bx, by) {
-  const dx = ax - bx;
-  const dy = ay - by;
-  return dx * dx + dy * dy;
-}
-
-function pointInsideCircle(px, py, c, r) {
-  const m = LABEL_MARGIN_PX * layoutMarginScale;
-  return distSq(px, py, c.x, c.y) < (r - m) * (r - m);
-}
-
-function pointOutsideCircle(px, py, c, r) {
-  const m = LABEL_MARGIN_PX * layoutMarginScale;
-  return distSq(px, py, c.x, c.y) > (r + m) * (r + m);
-}
-
 function isExclusivePoint(px, py, i, centers, r) {
-  if (!pointInsideCircle(px, py, centers[i], r)) return false;
+  const margin = LABEL_MARGIN_PX * layoutMarginScale;
+  if (!VennGeometry.pointInsideCircle(px, py, centers[i], r, margin)) return false;
   for (let k = 0; k < centers.length; k++) {
     if (k === i) continue;
-    if (!pointOutsideCircle(px, py, centers[k], r)) return false;
-  }
-  return true;
-}
-
-/** Exclusive lobe for circle `i` using full `rFinal` disks (matches `isInsideSpeckExclusive` when i === 0). */
-function isExclusiveRegionGeometric(px, py, i, centers, rFinal) {
-  const r2 = rFinal * rFinal;
-  for (let k = 0; k < centers.length; k++) {
-    const d2 = distSq(px, py, centers[k].x, centers[k].y);
-    if (k === i) {
-      if (d2 > r2) return false;
-    } else if (d2 <= r2) {
-      return false;
-    }
-  }
-  return true;
-}
-
-/**
- * Reader scan clip: same **non‑spectrum** exclusions as **`isExclusiveRegionGeometric(..., 2, ...)`** (other disks at **`rFinal`**),
- * but spectrum disk radius is **`rFinal + spectrumOutset`** so the bar can reach the **drawn ring** (outer isolated edge).
- */
-function isSpectrumExclusiveReaderScanClip(px, py, centers, rFinal, spectrumOutset) {
-  const o = Math.max(0, spectrumOutset);
-  const c2 = centers[2];
-  const rSpec2 = (rFinal + o) * (rFinal + o);
-  const r2 = rFinal * rFinal;
-  if (distSq(px, py, c2.x, c2.y) > rSpec2) return false;
-  for (let k = 0; k < centers.length; k++) {
-    if (k === 2) continue;
-    if (distSq(px, py, centers[k].x, centers[k].y) <= r2) return false;
+    if (!VennGeometry.pointOutsideCircle(px, py, centers[k], r, margin)) return false;
   }
   return true;
 }
@@ -2152,33 +1950,6 @@ function isSpectrumExclusiveReaderScanClip(px, py, centers, rFinal, spectrumOuts
 /** Half the Venn ring stroke in **world** units (matches **`scale(camZoom)`** + **`strokeWeight(SPECTRUM_READER_CLIP_VENN_RING_STROKE_LS * ls)`**). */
 function spectrumReaderScanSpectrumRingOutsetWorld(ls, camZoom) {
   return (SPECTRUM_READER_CLIP_VENN_RING_STROKE_LS * ls) / (2 * Math.max(camZoom, 1e-4));
-}
-
-/** Speck ∩ spectrum with full `rFinal` disks, excluding the inspect (1) disk (no triple-overlap fill). */
-function isSpeckSpectrumOverlapGeometric(px, py, centers, rFinal) {
-  const r2 = rFinal * rFinal;
-  const d0 = distSq(px, py, centers[0].x, centers[0].y);
-  const d1 = distSq(px, py, centers[1].x, centers[1].y);
-  const d2 = distSq(px, py, centers[2].x, centers[2].y);
-  return d0 <= r2 && d2 <= r2 && d1 > r2;
-}
-
-/** Inspect ∩ spectrum with full `rFinal` disks, excluding the speck (0) disk (pair-phrase lobe, no triple overlap). */
-function isInspectSpectrumOverlapGeometric(px, py, centers, rFinal) {
-  const r2 = rFinal * rFinal;
-  const d0 = distSq(px, py, centers[0].x, centers[0].y);
-  const d1 = distSq(px, py, centers[1].x, centers[1].y);
-  const d2 = distSq(px, py, centers[2].x, centers[2].y);
-  return d1 <= r2 && d2 <= r2 && d0 > r2;
-}
-
-/** Speck ∩ inspect with full `rFinal` disks, excluding the spectrum (2) disk (space-phrase lobe, no triple overlap). */
-function isSpeckInspectOverlapGeometric(px, py, centers, rFinal) {
-  const r2 = rFinal * rFinal;
-  const d0 = distSq(px, py, centers[0].x, centers[0].y);
-  const d1 = distSq(px, py, centers[1].x, centers[1].y);
-  const d2 = distSq(px, py, centers[2].x, centers[2].y);
-  return d0 <= r2 && d1 <= r2 && d2 > r2;
 }
 
 function rotatedRectFits(px, py, theta, w, h, i, centers, r) {
@@ -2203,22 +1974,6 @@ function rotatedRectFits(px, py, theta, w, h, i, centers, r) {
     if (!isExclusivePoint(rx, ry, i, centers, r)) return false;
   }
   return true;
-}
-
-function normalizeAnglePi(a) {
-  // Normalize to [-PI, PI]
-  let x = a;
-  while (x > Math.PI) x -= Math.PI * 2;
-  while (x < -Math.PI) x += Math.PI * 2;
-  return x;
-}
-
-function makeTextUpright(theta) {
-  // Avoid upside-down labels: keep within [-PI/2, PI/2] (allowing tilt).
-  let t = normalizeAnglePi(theta);
-  if (t > Math.PI / 2) t -= Math.PI;
-  if (t < -Math.PI / 2) t += Math.PI;
-  return t;
 }
 
 function computeExclusiveLabelLayout(centers, r, words, textPx) {
@@ -2254,7 +2009,7 @@ function computeExclusiveLabelLayout(centers, r, words, textPx) {
     // For the top word: keep it upright.
     const thetaCandidates = (typeof fixed === 'number')
       ? [fixed]
-      : [makeTextUpright(baseTheta + Math.PI / 2), makeTextUpright(baseTheta - Math.PI / 2)];
+      : [VennGeometry.makeTextUpright(baseTheta + Math.PI / 2), VennGeometry.makeTextUpright(baseTheta - Math.PI / 2)];
 
     const minFrac = (i === 0) ? LABEL_MIN_DIST_FRAC_TOP : LABEL_MIN_DIST_FRAC_BOTTOM;
     const maxFrac = (i === 0) ? LABEL_MAX_DIST_FRAC_TOP : LABEL_MAX_DIST_FRAC_BOTTOM;
@@ -2279,7 +2034,7 @@ function computeExclusiveLabelLayout(centers, r, words, textPx) {
         const px = ci.x + dx * (frac * r);
         const py = ci.y + dy * (frac * r);
         if (isExclusivePoint(px, py, i, centers, r)) {
-          const th = (typeof fixed === 'number') ? fixed : makeTextUpright(baseTheta + Math.PI / 2);
+          const th = (typeof fixed === 'number') ? fixed : VennGeometry.makeTextUpright(baseTheta + Math.PI / 2);
           best = { dx: px - ci.x, dy: py - ci.y, theta: th };
           break;
         }
@@ -2467,7 +2222,7 @@ function draw() {
             : elapsed <= gallery15ZoomMs
               ? 0
               : Math.max(0, Math.min(1, (elapsed - gallery15ZoomMs) / gallery15Seg23PhraseMs));
-          post2BelowSpeckAlpha = 255 * smootherstep(phraseU);
+          post2BelowSpeckAlpha = 255 * Easing.smootherstep(phraseU);
           done = seg23SkipZoom
             ? elapsed >= gallery15Seg23PhraseMs
             : elapsed >= gallery15ZoomMs + gallery15Seg23PhraseMs;
@@ -2479,17 +2234,17 @@ function draw() {
       }
 
       const a = Math.max(0, Math.min(1, t / 0.45));
-      const easeA = easeInOutCubic(a);
-      const curOffset = lerp(vennOff, vennOff * 1.35, easeA);
+      const easeA = Easing.easeInOutCubic(a);
+      const curOffset = Easing.lerp(vennOff, vennOff * 1.35, easeA);
       const curTargets = vennTargetsFor(curOffset);
 
       const b = Math.max(0, Math.min(1, (t - 0.45) / 0.55));
-      const easeB = easeInOutCubic(b);
+      const easeB = Easing.easeInOutCubic(b);
       const curSpeck = curTargets[0];
-      camX = lerp(cam1.x, curSpeck.x, easeB);
-      camY = lerp(cam1.y, curSpeck.y, easeB);
-      camZoom = lerp(1, zoom2, easeB);
-      screenY = lerp(cy, desiredSpeckCenterY, easeB);
+      camX = Easing.lerp(cam1.x, curSpeck.x, easeB);
+      camY = Easing.lerp(cam1.y, curSpeck.y, easeB);
+      camZoom = Easing.lerp(1, zoom2, easeB);
+      screenY = Easing.lerp(cy, desiredSpeckCenterY, easeB);
 
       computeExclusiveLabelLayout.fixedThetas = FIXED_LABEL_THETAS;
       const curLayouts = computeExclusiveLabelLayout(curTargets, rFinal, WORDS, vennTextPx);
@@ -2564,7 +2319,7 @@ function draw() {
         seg23Post2Alpha = liveMd23 ? 255 : post2BelowSpeckAlpha;
         if (liveMd23 && seg23ZoomDone && !seg23SkipPost2Fades) {
           const tIn = Math.max(0, Math.min(1, seg23Post2FadeElapsed / LIVE25_POST2_FADE_IN_MS));
-          seg23Post2Alpha = 255 * smootherstep(tIn);
+          seg23Post2Alpha = 255 * Easing.smootherstep(tIn);
         }
         if (
           liveMd23 &&
@@ -2575,14 +2330,14 @@ function draw() {
         ) {
           const filledN = post2Sediment.total - post2Sediment.remaining;
           const u = Math.max(0, Math.min(1, filledN / post2Sediment.total));
-          seg23Post2Alpha *= smootherstep(u);
+          seg23Post2Alpha *= Easing.smootherstep(u);
         }
         if (liveMd27 && !seg23SkipPost2Fades && galleryLive23OutroStartMs > 0) {
           const outroU = Math.max(
             0,
             Math.min(1, (millis() - galleryLive23OutroStartMs) / LIVE25_POST2_FADE_OUT_MS),
           );
-          seg23Post2Alpha *= Math.max(0, 1 - smootherstep(outroU));
+          seg23Post2Alpha *= Math.max(0, 1 - Easing.smootherstep(outroU));
         }
       }
 
@@ -2819,13 +2574,13 @@ function draw() {
         frame4Elapsed = millis() - galleryAnimStartMs;
         if (seg34Live) {
           const rotP = Math.min(1, frame4Elapsed / G34_ROT_MS);
-          easeAnim = easeInOutCubic(rotP);
+          easeAnim = Easing.easeInOutCubic(rotP);
           tAnim = Math.min(1, frame4Elapsed / (G34_ROT_MS + G34_PHRASE_FADE_MS));
           const fadeU =
             frame4Elapsed <= G34_ROT_MS
               ? 0
               : Math.max(0, Math.min(1, (frame4Elapsed - G34_ROT_MS) / G34_PHRASE_FADE_MS));
-          seg34OverlapPhraseAlpha = 255 * smootherstep(fadeU);
+          seg34OverlapPhraseAlpha = 255 * Easing.smootherstep(fadeU);
         } else if (seg45Live) {
           if (seg45MotionSpectrumSettled) {
             easeAnim = 1;
@@ -2834,10 +2589,10 @@ function draw() {
               0,
               Math.min(1, frame4Elapsed / SPECTRUM_STILL_PHRASE_FADE_MS),
             );
-            seg45SpectrumPhraseAlpha = 255 * smootherstep(fadeU);
+            seg45SpectrumPhraseAlpha = 255 * Easing.smootherstep(fadeU);
           } else {
             const rotP = Math.min(1, frame4Elapsed / G45_ROT_MS);
-            easeAnim = easeInOutCubic(rotP);
+            easeAnim = Easing.easeInOutCubic(rotP);
             tAnim = Math.min(1, frame4Elapsed / (G45_ROT_MS + SPECTRUM_STILL_PHRASE_FADE_MS));
             const fadeU =
               frame4Elapsed <= G45_ROT_MS
@@ -2849,11 +2604,11 @@ function draw() {
                       (frame4Elapsed - G45_ROT_MS) / SPECTRUM_STILL_PHRASE_FADE_MS,
                     ),
                   );
-            seg45SpectrumPhraseAlpha = 255 * smootherstep(fadeU);
+            seg45SpectrumPhraseAlpha = 255 * Easing.smootherstep(fadeU);
           }
         } else {
           tAnim = Math.max(0, Math.min(1, frame4Elapsed / 1200));
-          easeAnim = easeInOutCubic(tAnim);
+          easeAnim = Easing.easeInOutCubic(tAnim);
         }
       }
       const zoom2 = 2.35;
@@ -2868,7 +2623,7 @@ function draw() {
         6.6,
         Math.max(zoom2 + 0.4, (Math.min(width, height) * fitSideFrac) / Math.max(2 * lobeRadiusWorld, 18 * ls)),
       );
-      let camZoom = lerp(zoom2, zoomTarget, easeAnim);
+      let camZoom = Easing.lerp(zoom2, zoomTarget, easeAnim);
       // Camera follows the phrase-lobe centroid in *rotated* world space so that point stays at screen center.
       const phraseRotAt = (a) => {
         const ca = Math.cos(a);
@@ -2881,9 +2636,9 @@ function draw() {
         };
       };
       const pr = phraseRotAt(angle);
-      let camX = lerp(cam2.x, pr.x, easeAnim);
-      let camY = lerp(cam2.y, pr.y, easeAnim);
-      let screenY = lerp(cam2.screenY, cy, easeAnim);
+      let camX = Easing.lerp(cam2.x, pr.x, easeAnim);
+      let camY = Easing.lerp(cam2.y, pr.y, easeAnim);
+      let screenY = Easing.lerp(cam2.screenY, cy, easeAnim);
 
       const rotWorldToScreen = (wx, wy) => {
         const ca = Math.cos(angle);
@@ -2938,13 +2693,13 @@ function draw() {
             : seg45Live
               ? Math.min(1, frame4Elapsed / G45_ROT_MS)
               : tAnim;
-          const e45 = easeInOutCubic(rotT45);
+          const e45 = Easing.easeInOutCubic(rotT45);
           const prStart = phraseRotAt(rotEnd);
-          sceneAngle = lerp(rotEnd, sceneAngleTarget, e45);
+          sceneAngle = Easing.lerp(rotEnd, sceneAngleTarget, e45);
           camZoom = zoomTarget;
           screenY = cy;
-          camX = lerp(prStart.x, camXTarget, e45);
-          camY = lerp(prStart.y, camYTarget, e45);
+          camX = Easing.lerp(prStart.x, camXTarget, e45);
+          camY = Easing.lerp(prStart.y, camYTarget, e45);
         } else {
           sceneAngle = sceneAngleTarget;
           camX = camXTarget;
@@ -2986,7 +2741,7 @@ function draw() {
         const gy0 = Math.min(c0.y, c1.y, c2.y) - padG;
         const gy1 = Math.max(c0.y, c1.y, c2.y) + padG;
         debugG2DrawFillGridWorldRect(
-          (wx, wy) => isSpeckSpectrumOverlapGeometric(wx, wy, targets, rFinal),
+          (wx, wy) => VennGeometry.isSpeckSpectrumOverlapGeometric(wx, wy, targets, rFinal),
           gx0,
           gx1,
           gy0,
@@ -3003,7 +2758,7 @@ function draw() {
         window.__SPEC_GALLERY2_SHELL__ === true
       ) {
         debugG2DrawExclusiveFillGrid(
-          (wx, wy) => isExclusiveRegionGeometric(wx, wy, 2, targets, rFinal),
+          (wx, wy) => VennGeometry.isExclusiveRegionGeometric(wx, wy, 2, targets, rFinal),
           targets,
           rFinal,
           ls,
@@ -3059,7 +2814,7 @@ function draw() {
         const u = gallery15F4
           ? 1
           : Math.max(0, Math.min(1, (tAnim - phraseFadeT0) / (1 - phraseFadeT0)));
-        const phraseEase = gallery15F4 ? 1 : smootherstep(u);
+        const phraseEase = gallery15F4 ? 1 : Easing.smootherstep(u);
         if (segment34 && seg34Live && frame4Elapsed < G34_ROT_MS * 0.5) {
           const speckWx = targets[0].x + curLayouts[0].dx;
           const speckWy = targets[0].y + curLayouts[0].dy;
@@ -3331,25 +3086,25 @@ function draw() {
         frame5Elapsed = millis() - galleryAnimStartMs;
         if (seg56Live) {
           const rotP = Math.min(1, frame5Elapsed / G56_ROT_MS);
-          easeAnim = easeInOutCubic(rotP);
+          easeAnim = Easing.easeInOutCubic(rotP);
           tAnim = Math.min(1, frame5Elapsed / (G56_ROT_MS + G56_PAIR_FADE_MS));
           const fadeU =
             frame5Elapsed <= G56_ROT_MS
               ? 0
               : Math.max(0, Math.min(1, (frame5Elapsed - G56_ROT_MS) / G56_PAIR_FADE_MS));
-          seg56PairPhraseAlpha = 255 * smootherstep(fadeU);
+          seg56PairPhraseAlpha = 255 * Easing.smootherstep(fadeU);
         } else if (seg67Live) {
           const rotP = Math.min(1, frame5Elapsed / G67_ROT_MS);
-          easeAnim = easeInOutCubic(rotP);
+          easeAnim = Easing.easeInOutCubic(rotP);
           tAnim = Math.min(1, frame5Elapsed / (G67_ROT_MS + G67_INSPECT_FADE_MS));
           const fadeU =
             frame5Elapsed <= G67_ROT_MS
               ? 0
               : Math.max(0, Math.min(1, (frame5Elapsed - G67_ROT_MS) / G67_INSPECT_FADE_MS));
-          seg67InspectPhraseAlpha = 255 * smootherstep(fadeU);
+          seg67InspectPhraseAlpha = 255 * Easing.smootherstep(fadeU);
         } else {
           tAnim = Math.max(0, Math.min(1, frame5Elapsed / 1200));
-          easeAnim = easeInOutCubic(tAnim);
+          easeAnim = Easing.easeInOutCubic(tAnim);
         }
       }
       const fitSideFrac = 0.8;
@@ -3414,12 +3169,12 @@ function draw() {
           angleStart = aSpectrum;
           cam2f5 = { x: camXSpectrum, y: camYSpectrum, zoom: zoomTarget, screenY: cy };
         }
-        angle = lerp(angleStart, angleTarget, easeAnim);
+        angle = Easing.lerp(angleStart, angleTarget, easeAnim);
         const pr = phraseRotAt(angle);
-        camZoom = lerp(cam2f5.zoom, zoomTarget, easeAnim);
-        camX = lerp(cam2f5.x, pr.x, easeAnim);
-        camY = lerp(cam2f5.y, pr.y, easeAnim);
-        screenY = lerp(cam2f5.screenY, cy, easeAnim);
+        camZoom = Easing.lerp(cam2f5.zoom, zoomTarget, easeAnim);
+        camX = Easing.lerp(cam2f5.x, pr.x, easeAnim);
+        camY = Easing.lerp(cam2f5.y, pr.y, easeAnim);
+        screenY = Easing.lerp(cam2f5.screenY, cy, easeAnim);
       }
 
       const anglePh = pairStill ? rotSlide3 + rotStep120 : angleTarget;
@@ -3471,14 +3226,14 @@ function draw() {
         if (segment67) {
           // Live motion 6: start at Still 06 endpoint, transition to Still 07 endpoint.
           const rotT67 = seg67Live ? Math.min(1, frame5Elapsed / G67_ROT_MS) : tAnim;
-          const e67 = easeInOutCubic(rotT67);
+          const e67 = Easing.easeInOutCubic(rotT67);
           const aStart = rotSlide3 + rotStep120;
           const prStart = phraseRotAt(aStart);
-          sceneAngle = lerp(aStart, sceneAngleTarget, e67);
+          sceneAngle = Easing.lerp(aStart, sceneAngleTarget, e67);
           camZoom = zoomTarget;
           screenY = cy;
-          camX = lerp(prStart.x, camXTarget, e67);
-          camY = lerp(prStart.y, camYTarget, e67);
+          camX = Easing.lerp(prStart.x, camXTarget, e67);
+          camY = Easing.lerp(prStart.y, camYTarget, e67);
         } else {
           sceneAngle = sceneAngleTarget;
           camX = camXTarget;
@@ -3520,7 +3275,7 @@ function draw() {
         const gy0 = Math.min(c0.y, c1.y, c2.y) - padG;
         const gy1 = Math.max(c0.y, c1.y, c2.y) + padG;
         debugG2DrawFillGridWorldRect(
-          (wx, wy) => isInspectSpectrumOverlapGeometric(wx, wy, targets, rFinal),
+          (wx, wy) => VennGeometry.isInspectSpectrumOverlapGeometric(wx, wy, targets, rFinal),
           gx0,
           gx1,
           gy0,
@@ -3537,7 +3292,7 @@ function draw() {
         window.__SPEC_GALLERY2_SHELL__ === true
       ) {
         debugG2DrawExclusiveFillGrid(
-          (wx, wy) => isExclusiveRegionGeometric(wx, wy, 1, targets, rFinal),
+          (wx, wy) => VennGeometry.isExclusiveRegionGeometric(wx, wy, 1, targets, rFinal),
           targets,
           rFinal,
           ls,
@@ -3568,7 +3323,7 @@ function draw() {
         const u = gallery15F5
           ? 1
           : Math.max(0, Math.min(1, (tAnim - phraseFadeT0) / (1 - phraseFadeT0)));
-        const phraseEase = gallery15F5 ? 1 : smootherstep(u);
+        const phraseEase = gallery15F5 ? 1 : Easing.smootherstep(u);
         const useSpectrumPhrases = seg56Live && frame5Elapsed < G56_ROT_MS;
         const useInspectPhrases =
           inspectStill || (seg67Live && frame5Elapsed >= G67_ROT_MS);
@@ -3788,16 +3543,16 @@ function draw() {
         frame6Elapsed = millis() - galleryAnimStartMs;
         if (seg78Live) {
           const rotP = Math.min(1, frame6Elapsed / G78_ROT_MS);
-          easeAnim = easeInOutCubic(rotP);
+          easeAnim = Easing.easeInOutCubic(rotP);
           tAnim = Math.min(1, frame6Elapsed / (G78_ROT_MS + G78_SPACE_FADE_MS));
           const fadeU =
             frame6Elapsed <= G78_ROT_MS
               ? 0
               : Math.max(0, Math.min(1, (frame6Elapsed - G78_ROT_MS) / G78_SPACE_FADE_MS));
-          seg78SpacePhraseAlpha = 255 * smootherstep(fadeU);
+          seg78SpacePhraseAlpha = 255 * Easing.smootherstep(fadeU);
         } else {
           tAnim = Math.max(0, Math.min(1, frame6Elapsed / 1200));
-          easeAnim = easeInOutCubic(tAnim);
+          easeAnim = Easing.easeInOutCubic(tAnim);
         }
       }
 
@@ -3834,12 +3589,12 @@ function draw() {
           angleStart = aInspect;
           cam2f6 = { x: camXInspect, y: camYInspect, zoom: zoomTarget, screenY: cy };
         }
-        angle = lerp(angleStart, angleTarget, easeAnim);
+        angle = Easing.lerp(angleStart, angleTarget, easeAnim);
         const pr = phraseRotAt(angle);
-        camZoom = lerp(cam2f6.zoom, zoomTarget, easeAnim);
-        camX = lerp(cam2f6.x, pr.x, easeAnim);
-        camY = lerp(cam2f6.y, pr.y, easeAnim);
-        screenY = lerp(cam2f6.screenY, cy, easeAnim);
+        camZoom = Easing.lerp(cam2f6.zoom, zoomTarget, easeAnim);
+        camX = Easing.lerp(cam2f6.x, pr.x, easeAnim);
+        camY = Easing.lerp(cam2f6.y, pr.y, easeAnim);
+        screenY = Easing.lerp(cam2f6.screenY, cy, easeAnim);
       }
 
       const anglePh = spaceStill ? rotSlide3 + 2 * rotStep120 : angleTarget;
@@ -3903,7 +3658,7 @@ function draw() {
         const gy0 = Math.min(c0.y, c1.y, c2.y) - padG;
         const gy1 = Math.max(c0.y, c1.y, c2.y) + padG;
         debugG2DrawFillGridWorldRect(
-          (wx, wy) => isSpeckInspectOverlapGeometric(wx, wy, targets, rFinal),
+          (wx, wy) => VennGeometry.isSpeckInspectOverlapGeometric(wx, wy, targets, rFinal),
           gx0,
           gx1,
           gy0,
@@ -3936,7 +3691,7 @@ function draw() {
         const u = gallery15F6
           ? 1
           : Math.max(0, Math.min(1, (tAnim - phraseFadeT0) / (1 - phraseFadeT0)));
-        const phraseEase = gallery15F6 ? 1 : smootherstep(u);
+        const phraseEase = gallery15F6 ? 1 : Easing.smootherstep(u);
         const useInspectPhrases = seg78Live && frame6Elapsed < G78_ROT_MS;
         const phrases = useInspectPhrases ? INSPECT_STILL_PHRASES : SPECK_INSPECT_SPACE_PHRASES;
         const baseScr = { x: cx, y: cy };
@@ -4090,19 +3845,19 @@ function draw() {
 
       // Stage A (0..0.45): 1 -> 2 (reduce overlap by spreading circles)
       const a = Math.max(0, Math.min(1, t / 0.45));
-      const easeA = easeInOutCubic(a);
-      const curOffset = lerp(vennOff, vennOff * 1.35, easeA);
+      const easeA = Easing.easeInOutCubic(a);
+      const curOffset = Easing.lerp(vennOff, vennOff * 1.35, easeA);
       const curTargets = vennTargetsFor(curOffset);
 
       // Stage B (0.45..1): 2 -> 3 (zoom into speck)
       const b = Math.max(0, Math.min(1, (t - 0.45) / 0.55));
-      const easeB = easeInOutCubic(b);
+      const easeB = Easing.easeInOutCubic(b);
       const curSpeck = curTargets[0];
 
-      camX = lerp(cam1.x, curSpeck.x, easeB);
-      camY = lerp(cam1.y, curSpeck.y, easeB);
-      camZoom = lerp(1, zoom2, easeB);
-      screenY = lerp(cy, desiredSpeckCenterY, easeB);
+      camX = Easing.lerp(cam1.x, curSpeck.x, easeB);
+      camY = Easing.lerp(cam1.y, curSpeck.y, easeB);
+      camZoom = Easing.lerp(1, zoom2, easeB);
+      screenY = Easing.lerp(cy, desiredSpeckCenterY, easeB);
 
       // Recompute layouts for the current (animated) targets so labels follow.
       computeExclusiveLabelLayout.fixedThetas = FIXED_LABEL_THETAS;
@@ -4322,18 +4077,18 @@ function draw() {
           camZoom = f6end.camZoom;
           screenY = f6end.screenY;
           seg89SceneAngle = f6end.angle;
-          seg89SpacePhraseAlpha = 255 * (1 - smootherstep(elapsed89 / G89_TEXT_FADE_MS));
+          seg89SpacePhraseAlpha = 255 * (1 - Easing.smootherstep(elapsed89 / G89_TEXT_FADE_MS));
           fadeIndividual = 0;
         } else {
           const uCam = Math.min(1, (elapsed89 - G89_TEXT_FADE_MS) / G89_ZOOM_MS);
-          const e = easeInOutCubic(uCam);
-          camX = lerp(f6end.camX, cam1.x, e);
-          camY = lerp(f6end.camY, cam1.y, e);
-          camZoom = lerp(f6end.camZoom, cam1.zoom, e);
-          screenY = lerp(f6end.screenY, cam1.screenY, e);
-          seg89SceneAngle = lerp(f6end.angle, 0, e);
+          const e = Easing.easeInOutCubic(uCam);
+          camX = Easing.lerp(f6end.camX, cam1.x, e);
+          camY = Easing.lerp(f6end.camY, cam1.y, e);
+          camZoom = Easing.lerp(f6end.camZoom, cam1.zoom, e);
+          screenY = Easing.lerp(f6end.screenY, cam1.screenY, e);
+          seg89SceneAngle = Easing.lerp(f6end.angle, 0, e);
           seg89SpacePhraseAlpha = 0;
-          fadeIndividual = smootherstep(uCam);
+          fadeIndividual = Easing.smootherstep(uCam);
         }
       } else {
         fadeIndividual = 1;
@@ -4345,18 +4100,18 @@ function draw() {
         loop();
       }
       const tFade = Math.max(0, Math.min(1, (millis() - galleryAnimStartMs) / G91011_FADE_MS));
-      const eFade = easeInOutCubic(tFade);
+      const eFade = Easing.easeInOutCubic(tFade);
       if (motionSegment === '910' && f6end && typeof f6end.camX === 'number') {
-        camX = lerp(f6end.camX, camX, eFade);
-        camY = lerp(f6end.camY, camY, eFade);
-        camZoom = lerp(f6end.camZoom, camZoom, eFade);
-        screenY = lerp(f6end.screenY, screenY, eFade);
+        camX = Easing.lerp(f6end.camX, camX, eFade);
+        camY = Easing.lerp(f6end.camY, camY, eFade);
+        camZoom = Easing.lerp(f6end.camZoom, camZoom, eFade);
+        screenY = Easing.lerp(f6end.screenY, screenY, eFade);
       }
       if (motionSegment === '910') {
-        fadeOverlap = smootherstep(tFade);
+        fadeOverlap = Easing.smootherstep(tFade);
       }
       if (motionSegment === '1011') {
-        fadeLogo = smootherstep(tFade);
+        fadeLogo = Easing.smootherstep(tFade);
       }
     }
 
@@ -4702,7 +4457,7 @@ function draw() {
 
   if (t < DURATION_ONE) {
     // Phase 1: circle fades in, "spec" lingers 3s (no zoom)
-    const fadeIn = easeOutCubic(t / DURATION_FADE);
+    const fadeIn = Easing.easeOutCubic(t / DURATION_FADE);
     const circleAlpha = 180 * fadeIn;
     const strokeAlpha = 80 * fadeIn;
 
@@ -4711,7 +4466,7 @@ function draw() {
     ellipse(cx, cy, circleSize, circleSize);
     drawInkCircleOutline(cx, cy, circleSize / 2, strokeAlpha * 1.6, 3, 101);
 
-    const specAlpha = easeOutCubic((t - DURATION_FADE * 0.4) / (DURATION_FADE * 0.6));
+    const specAlpha = Easing.easeOutCubic((t - DURATION_FADE * 0.4) / (DURATION_FADE * 0.6));
     const specOpacity = 255 * specAlpha;
 
     textSize(specTextPx);
@@ -4725,7 +4480,7 @@ function draw() {
   } else if (t < DURATION_ONE + DURATION_ZOOM_IN) {
     // Phase 2: zoom INTO circle
     const s = (t - DURATION_ONE) / DURATION_ZOOM_IN;
-    const ease = easeInOutCubic(s);
+    const ease = Easing.easeInOutCubic(s);
     const circleZoom = 1 + (CIRCLE_ZOOM_MAX - 1) * ease; // 1 -> 2
     const wordZoom = 1 + (WORD_ZOOM_MAX - 1) * ease;     // 1 -> 1.5
 
@@ -4756,9 +4511,9 @@ function draw() {
     // Phase 3: split 's' into three + pad words (speck, Inspect, spectrum) — inside one circle, zoomed in
     const elapsed = t - DURATION_ONE - DURATION_ZOOM_IN;
     const sSplit = Math.min(1, elapsed / 1); // first 1s: split three s's
-    const easeSplit = easeOutCubic(sSplit);
+    const easeSplit = Easing.easeOutCubic(sSplit);
     const sWords = (elapsed - 1) / (DURATION_S_AND_WORDS - 1); // rest: build words
-    const easeWords = easeInOutCubic(sWords * 1.02);
+    const easeWords = Easing.easeInOutCubic(sWords * 1.02);
     const step = Math.min(Math.floor(easeWords * TOTAL_LETTERS), TOTAL_LETTERS - 1);
 
     let n0 = 0, n1 = 0, n2 = 0;
@@ -4807,7 +4562,7 @@ function draw() {
       textSize(specTextPx);
       textAlign(CENTER, CENTER);
       for (let i = 0; i < 3; i++) {
-        const y = lerp(cy, linePositions[i].y, easeSplit);
+        const y = Easing.lerp(cy, linePositions[i].y, easeSplit);
         text('s', sCenterX, y);
       }
     } else {
@@ -4818,8 +4573,8 @@ function draw() {
       const RECENTER_START = 0.85; // start when typing progress reaches 85%
       const recenterT = Math.max(0, Math.min(1, (easeWords - RECENTER_START) / (1 - RECENTER_START)));
       // smootherstep for extra softness
-      const recenterEase = smootherstep(recenterT);
-      const xLeft = lerp(sLeftX, centeredLeftX, recenterEase);
+      const recenterEase = Easing.smootherstep(recenterT);
+      const xLeft = Easing.lerp(sLeftX, centeredLeftX, recenterEase);
 
       textAlign(LEFT, CENTER);
       if (part0.length > 0) text(part0, xLeft, linePositions[0].y);
@@ -4865,7 +4620,7 @@ function draw() {
       1,
       Math.max(0, ((t - DURATION_ONE - DURATION_ZOOM_IN - DURATION_S_AND_WORDS) / DURATION_ZOOM_OUT) * 1.02)
     );
-    const ease = easeInOutCubic(s);
+    const ease = Easing.easeInOutCubic(s);
     const circleZoom = CIRCLE_ZOOM_MAX - (CIRCLE_ZOOM_MAX - 1) * ease; // 2 -> 1
     const wordZoom = WORD_ZOOM_MAX - (WORD_ZOOM_MAX - WORD_ZOOM_OUT_END) * ease; // 1.5 -> 0.5
 
@@ -4935,11 +4690,11 @@ function draw() {
     const sRaw = (t - DURATION_ONE - DURATION_ZOOM_IN - DURATION_S_AND_WORDS - DURATION_ZOOM_OUT - DURATION_HOLD) / DURATION_VENN;
     const s = Math.max(0, Math.min(1, sRaw));
     // Smootherstep for a softer start/end (more dynamic acceleration)
-    const ease = smootherstep(s);
+    const ease = Easing.smootherstep(s);
 
     // Crossfade: keep the single circle at first, then fade in the 3 circles as they split out
     const fadeT = Math.max(0, Math.min(1, s / 0.35)); // fade-in completes early
-    const fade = smootherstep(fadeT);
+    const fade = Easing.smootherstep(fadeT);
 
     // Start from the single (zoomed-out) circle and have it split into three circles.
     // Words follow their corresponding circle as it moves out.
@@ -4964,14 +4719,14 @@ function draw() {
     drawInkCircleOutline(cx, cy, circleSize / 2, 255 * (1 - fade), 3, 106);
 
     for (let i = 0; i < 3; i++) {
-      const x = lerp(cx, vennTargets[i].x, ease);
-      const y = lerp(cy, vennTargets[i].y, ease);
-      const d = lerp(circleSize, vennD, ease);
+      const x = Easing.lerp(cx, vennTargets[i].x, ease);
+      const y = Easing.lerp(cy, vennTargets[i].y, ease);
+      const d = Easing.lerp(circleSize, vennD, ease);
 
-      const rC = lerp(baseColor[0], vennColors[i][0], ease);
-      const gC = lerp(baseColor[1], vennColors[i][1], ease);
-      const bC = lerp(baseColor[2], vennColors[i][2], ease);
-      const aC = lerp(baseColor[3], vennColors[i][3], ease);
+      const rC = Easing.lerp(baseColor[0], vennColors[i][0], ease);
+      const gC = Easing.lerp(baseColor[1], vennColors[i][1], ease);
+      const bC = Easing.lerp(baseColor[2], vennColors[i][2], ease);
+      const aC = Easing.lerp(baseColor[3], vennColors[i][3], ease);
 
       noStroke();
       noFill();
@@ -5008,8 +4763,8 @@ function draw() {
       const theta = finalLayouts[i].theta * rotEase;
 
       // Move word center from its original stacked position to its exclusive-region target
-      const wx = lerp(startWX, targetX, ease);
-      const wy = lerp(startWY, targetY, ease);
+      const wx = Easing.lerp(startWX, targetX, ease);
+      const wy = Easing.lerp(startWY, targetY, ease);
 
       fill(0, 255 * fade);
       push();
