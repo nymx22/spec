@@ -952,7 +952,7 @@ function ensureSpecLogoLoaded() {
   if (specLogoLoadTried) return;
   specLogoLoadTried = true;
   specLogoImg = loadImage(
-    '../../../assets/spec-logo.png',
+    '../assets/spec-logo.png',
     () => { if (galleryMode) redraw(); },
     () => { specLogoImg = null; },
   );
