@@ -16,7 +16,7 @@ function specSiteFontUrlSpeck(file) {
     const src = scripts[i].src;
     if (src && /\/speckSketch\.js(\?|#|$)/.test(src)) {
       try {
-        return new URL(`../../../fonts/${file}`, src).href;
+        return new URL(`../fonts/${file}`, src).href;
       } catch (e) {
         break;
       }

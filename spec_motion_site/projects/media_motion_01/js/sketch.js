@@ -927,7 +927,7 @@ function applySketchCanvasDimensions() {
   }
 }
 
-/** Fonts live under `spec_motion_site/fonts/`; resolve from this script (`…/js/sketch.js`). */
+/** Fonts live under `projects/media_motion_01/fonts/`; resolve from this script (`…/js/sketch.js`). */
 function specSiteFontUrl(file) {
   if (typeof document === 'undefined') return '../fonts/' + file;
   const scripts = document.getElementsByTagName('script');
@@ -935,7 +935,7 @@ function specSiteFontUrl(file) {
     const src = scripts[i].src;
     if (src && /\/sketch\.js(\?|#|$)/.test(src)) {
       try {
-        return new URL(`../../../fonts/${file}`, src).href;
+        return new URL(`../fonts/${file}`, src).href;
       } catch (e) {
         break;
       }

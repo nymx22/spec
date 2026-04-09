@@ -1,5 +1,5 @@
 /**
- * Post 1.2 hub **1** (`post2-gallery-stills.html`) & **1.5** (`post2-gallery-1-5.html`).
+ * Post 1.2 hub **1** (`html/stills/post2-gallery-stills.html`) & **1.5** (`html/stills/post2-gallery-1-5.html`).
  * Gallery 1.5 references the same shell + fonts as gallery 1; canvas copy uses black ink via `specGallery1Or15InkTypography()` in `sketch.js`.
  */
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500&display=swap');
