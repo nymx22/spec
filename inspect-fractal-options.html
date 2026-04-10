@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>inspect — fractal zoom options</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #111; color: #eee; font-family: 'Courier New', monospace; }
+  h1 { padding: 24px 32px 8px; font-size: 13px; letter-spacing: 0.18em; color: #555; font-weight: normal; }
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2px;
+    padding: 2px;
+    background: #111;
+  }
+  .cell {
+    background: #0a0a0a;
+    position: relative;
+    cursor: pointer;
+  }
+  .cell:last-child { grid-column: 1 / -1; }
+  .label {
+    position: absolute;
+    top: 12px; left: 16px;
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    color: #444;
+    pointer-events: none;
+    z-index: 10;
+    text-transform: uppercase;
+  }
+  .label span { color: #888; }
+  canvas { display: block; width: 100%; }
+  .cell:hover .label { color: #666; }
+</style>
+</head>
+<body>
+<h1>inspect · fractal zoom options</h1>
+<div class="grid" id="grid"></div>
+
+<script>
+const OPTIONS = [
+  { id: 'A', name: 'Infinite Corridor', sub: 'zoom-tunnel drill' },
+  { id: 'B', name: 'Self-Similar Echo', sub: 'Sierpiński shrink' },
+  { id: 'C', name: 'Phase-Zoom Oscillation', sub: 'per-letter scale' },
+  { id: 'D', name: 'Zoom Strobe', sub: 'detail flash' },
+  { id: 'E', name: 'Mandelbrot Surround', sub: 'fractal context lines' },
+];
+
+const W = 560, H = 260;
+
+function mkCanvas(opt) {
+  const cell = document.createElement('div');
+  cell.className = 'cell';
+  const lbl = document.createElement('div');
+  lbl.className = 'label';
+  lbl.innerHTML = `<span>${opt.id}</span> — ${opt.name} <br><span style="font-size:9px;color:#333">${opt.sub}</span>`;
+  const cv = document.createElement('canvas');
+  cv.width = W * devicePixelRatio;
+  cv.height = H * devicePixelRatio;
+  cv.style.height = H + 'px';
+  cell.appendChild(lbl);
+  cell.appendChild(cv);
+  document.getElementById('grid').appendChild(cell);
+  const ctx = cv.getContext('2d');
+  ctx.scale(devicePixelRatio, devicePixelRatio);
+  return { ctx, w: W, h: H };
+}
+
+const canvases = OPTIONS.map(mkCanvas);
+
+// ─── shared helpers ──────────────────────────────────────────────────────────
+const WORD = 'inspect';
+const LETTERS = WORD.split('');
+function lerp(a, b, t) { return a + (b - a) * t; }
+function clamp(x, lo, hi) { return Math.max(lo, Math.min(hi, x)); }
+function easeInOut(t) { t = clamp(t,0,1); return t<0.5 ? 4*t*t*t : 1-Math.pow(-2*t+2,3)/2; }
+function smoothstep(t) { t=clamp(t,0,1); return t*t*t*(t*(t*6-15)+10); }
+
+// ─── Option A: Infinite Corridor ─────────────────────────────────────────────
+function drawA(ctx, w, h, t) {
+  ctx.clearRect(0,0,w,h);
+  ctx.fillStyle = '#0a0a0a';
+  ctx.fillRect(0,0,w,h);
+
+  const cx = w/2, cy = h/2;
+  const LAYERS = 7;
+  const PERIOD = 5.0; // seconds
+  const phase = (t % PERIOD) / PERIOD; // 0→1 loops
+
+  const baseFont = 36;
+  const KSCALE = 0.68; // ratio between layers
+  const SPIRAL_DEG = 3; // degrees rotation per layer
+
+  for (let li = LAYERS - 1; li >= 0; li--) {
+    // li=0 is innermost; li=LAYERS-1 is outermost
+    // As phase goes 0→1, everything zooms in: outermost shrinks toward 0, new appears at outer
+    const rawScale = Math.pow(KSCALE, li) * (1 - phase) + Math.pow(KSCALE, li - 1) * phase;
+    const scale = Math.pow(KSCALE, li) / Math.pow(KSCALE, (li - phase));
+    const alpha = li === 0
+      ? clamp(phase * 4, 0, 1) * 0.25  // innermost fades in late
+      : li === LAYERS - 1
+        ? (1 - phase) * 0.9            // outermost fades as it shrinks away
+        : 0.15 + 0.75 * Math.pow(KSCALE, li) / Math.pow(KSCALE, 0);
+
+    // simpler: outer layers are more transparent
+    const opacityBase = 0.08 + (LAYERS - li - 1) / (LAYERS - 1) * 0.85;
+    const opacity = li === 0
+      ? clamp(phase * 6, 0, 1) * 0.15
+      : li === LAYERS - 1
+        ? (1 - phase) * opacityBase
+        : opacityBase;
+
+    const zoomFactor = Math.pow(1 / KSCALE, phase) * Math.pow(KSCALE, li);
+    const rot = (li - phase) * SPIRAL_DEG * Math.PI / 180;
+
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(rot);
+    ctx.scale(zoomFactor, zoomFactor);
+
+    const fs = baseFont;
+    ctx.font = `300 ${fs}px 'Courier New', monospace`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = `rgba(230,230,230,${opacity})`;
+    ctx.letterSpacing = '0.08em';
+    ctx.fillText(WORD, 0, 0);
+    // underline
+    const tw = ctx.measureText(WORD).width;
+    ctx.strokeStyle = `rgba(180,180,180,${opacity * 0.5})`;
+    ctx.lineWidth = 0.5;
+    ctx.beginPath();
+    ctx.moveTo(-tw/2, fs*0.6);
+    ctx.lineTo(tw/2, fs*0.6);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // sharp foreground label always at scale 1
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.font = `300 ${baseFont}px 'Courier New', monospace`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = 'rgba(230,230,230,0.92)';
+  ctx.fillText(WORD, 0, 0);
+  ctx.restore();
+}
+
+// ─── Option B: Self-Similar Echo ─────────────────────────────────────────────
+function drawB(ctx, w, h, t) {
+  ctx.clearRect(0,0,w,h);
+  ctx.fillStyle = '#0a0a0a';
+  ctx.fillRect(0,0,w,h);
+
+  const cx = w/2, cy = h/2;
+  const PERIOD = 8;
+  const phase = (t % PERIOD) / PERIOD;
+  // global zoom oscillates: contracts, then jumps back
+  // use sawtooth: smoothly zoom in then jump
+  const sawPhase = easeInOut(Math.pow(phase, 0.7));
+  const globalZoom = 1.0 + sawPhase * 0.8; // zoom 1→1.8 then reset
+
+  const baseFont = 38;
+  const DEPTH = 3;
+
+  function drawWord(depth, ox, oy, sc, opacity) {
+    if (depth > DEPTH || sc < 0.003 || opacity < 0.02) return;
+    ctx.save();
+    ctx.translate(ox, oy);
+    ctx.scale(sc, sc);
+    const fs = baseFont;
+    ctx.font = `300 ${fs}px 'Courier New', monospace`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = `rgba(220,220,220,${opacity})`;
+    ctx.fillText(WORD, 0, 0);
+
+    // draw a subtle bounding rect
+    if (depth === 0) {
+      const tw = ctx.measureText(WORD).width;
+      ctx.strokeStyle = `rgba(100,100,100,0.15)`;
+      ctx.lineWidth = 0.8;
+      ctx.strokeRect(-tw/2 - 4, -fs*0.6, tw + 8, fs*1.2);
+    }
+
+    // recurse: place child inside each letter
+    if (depth < DEPTH) {
+      const tw = ctx.measureText(WORD).width;
+      const childSc = 0.22; // child is 22% of parent
+      const letterW = tw / LETTERS.length;
+      for (let li = 0; li < LETTERS.length; li++) {
+        const lx = -tw/2 + letterW * (li + 0.5);
+        const ly = 0;
+        drawWord(depth + 1, lx, ly, childSc, opacity * 0.55);
+      }
+    }
+    ctx.restore();
+  }
+
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.scale(globalZoom, globalZoom);
+  drawWord(0, 0, 0, 1.0, 0.9);
+  ctx.restore();
+}
+
+// ─── Option C: Phase-Zoom Oscillation ────────────────────────────────────────
+function drawC(ctx, w, h, t) {
+  ctx.clearRect(0,0,w,h);
+  ctx.fillStyle = '#0a0a0a';
+  ctx.fillRect(0,0,w,h);
+
+  const cx = w/2, cy = h/2;
+  const PERIOD = 5.5;
+  const baseFont = 36;
+
+  ctx.font = `300 ${baseFont}px 'Courier New', monospace`;
+  ctx.textBaseline = 'middle';
+  ctx.textAlign = 'left';
+
+  // Measure total width
+  const totalW = ctx.measureText(WORD).width;
+  // Per-letter widths
+  const lwidths = LETTERS.map(l => ctx.measureText(l).width);
+  let xStart = cx - totalW / 2;
+
+  const ZOOM_PHASE_OFFSET = 2 * Math.PI / LETTERS.length; // 360/7 offset per letter
+  const ZOOM_AMP = 0.45; // how much each letter zooms in/out (±)
+  const ZOOM_CENTRE_PULL = 0.7; // how much letter moves toward centre when zoomed in
+
+  for (let li = 0; li < LETTERS.length; li++) {
+    const lw = lwidths[li];
+    const letterCx = xStart + lw / 2;
+    const phi = (t / PERIOD) * 2 * Math.PI + li * ZOOM_PHASE_OFFSET;
+    const zoomU = (Math.sin(phi) + 1) / 2; // 0→1
+    const scale = 1.0 - ZOOM_AMP + ZOOM_AMP * 2 * zoomU; // 0.55 → 1.45
+    const opacity = 0.3 + 0.65 * zoomU;
+
+    // Ghost at base position
+    const ghostOpacity = (1 - zoomU) * 0.18;
+    if (ghostOpacity > 0.02) {
+      ctx.save();
+      ctx.translate(letterCx, cy);
+      ctx.font = `300 ${baseFont}px 'Courier New', monospace`;
+      ctx.fillStyle = `rgba(200,200,200,${ghostOpacity})`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(LETTERS[li], 0, 0);
+      ctx.restore();
+    }
+
+    // Main scaled letter
+    ctx.save();
+    ctx.translate(letterCx, cy);
+    ctx.scale(scale, scale);
+    ctx.font = `300 ${baseFont}px 'Courier New', monospace`;
+    ctx.fillStyle = `rgba(225,225,225,${opacity})`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(LETTERS[li], 0, 0);
+
+    // hairline underline on near-max zoom
+    if (zoomU > 0.75) {
+      const fw = ctx.measureText(LETTERS[li]).width;
+      ctx.strokeStyle = `rgba(180,180,180,${(zoomU - 0.75) * 4 * 0.6})`;
+      ctx.lineWidth = 0.7;
+      ctx.beginPath();
+      ctx.moveTo(-fw/2, baseFont * 0.55);
+      ctx.lineTo(fw/2, baseFont * 0.55);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    xStart += lw;
+  }
+}
+
+// ─── Option D: Zoom Strobe / Detail Flash ────────────────────────────────────
+function drawD(ctx, w, h, t) {
+  ctx.clearRect(0,0,w,h);
+  ctx.fillStyle = '#0a0a0a';
+  ctx.fillRect(0,0,w,h);
+
+  const cx = w/2, cy = h/2;
+  const SWEEP_PERIOD = 4.5; // seconds per full L→R sweep
+  const FLASH_DUR = 0.16;  // fraction of period each letter stays zoomed
+  const FLASH_SCALE = 2.6;
+  const baseFont = 34;
+
+  ctx.font = `300 ${baseFont}px 'Courier New', monospace`;
+  ctx.textBaseline = 'middle';
+  ctx.textAlign = 'left';
+
+  const totalW = ctx.measureText(WORD).width;
+  const lwidths = LETTERS.map(l => ctx.measureText(l).width);
+
+  const sweepT = (t % SWEEP_PERIOD) / SWEEP_PERIOD; // 0→1
+  // which letter is lit?
+  const litIdx = sweepT < 1 ? Math.floor(sweepT * (LETTERS.length + 1)) : -1;
+  const litLocal = sweepT * (LETTERS.length + 1) - Math.floor(sweepT * (LETTERS.length + 1));
+
+  // scan line
+  const scanX = cx - totalW/2 + sweepT * (totalW + 60) - 30;
+  ctx.strokeStyle = 'rgba(180,100,100,0.25)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(scanX, cy - 40);
+  ctx.lineTo(scanX, cy + 40);
+  ctx.stroke();
+
+  let xStart = cx - totalW / 2;
+  for (let li = 0; li < LETTERS.length; li++) {
+    const lw = lwidths[li];
+    const letterCx = xStart + lw / 2;
+    const isLit = li === litIdx && litLocal < FLASH_DUR;
+    const flashU = isLit ? easeInOut(litLocal / FLASH_DUR) : 0;
+
+    // base letter
+    const baseOpacity = isLit ? 0.15 : 0.75;
+    ctx.save();
+    ctx.translate(letterCx, cy);
+    ctx.font = `300 ${baseFont}px 'Courier New', monospace`;
+    ctx.fillStyle = `rgba(210,210,210,${baseOpacity})`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(LETTERS[li], 0, 0);
+    ctx.restore();
+
+    if (isLit && flashU > 0) {
+      // zoomed version clipped to letter bounding box
+      const clipW = lw + 6;
+      const clipH = baseFont * 1.6;
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(letterCx - clipW/2, cy - clipH/2, clipW, clipH);
+      ctx.clip();
+
+      ctx.translate(letterCx, cy);
+      const sc = lerp(1, FLASH_SCALE, flashU);
+      ctx.scale(sc, sc);
+      // thin stroke to show internal structure
+      ctx.font = `300 ${baseFont}px 'Courier New', monospace`;
+      ctx.strokeStyle = `rgba(200,180,180,${flashU * 0.7})`;
+      ctx.lineWidth = 0.4 / sc;
+      ctx.strokeText(LETTERS[li], 0, 0);
+      ctx.fillStyle = `rgba(255,230,230,${0.4 + flashU * 0.5})`;
+      ctx.fillText(LETTERS[li], 0, 0);
+
+      // tick underline
+      ctx.strokeStyle = `rgba(200,140,140,${flashU * 0.9})`;
+      ctx.lineWidth = 1 / sc;
+      const fw = ctx.measureText(LETTERS[li]).width;
+      ctx.beginPath();
+      ctx.moveTo(-fw/2, baseFont * 0.55);
+      ctx.lineTo(fw/2, baseFont * 0.55);
+      ctx.stroke();
+
+      ctx.restore();
+    }
+    xStart += lw;
+  }
+}
+
+// ─── Option E: Mandelbrot Surround ───────────────────────────────────────────
+function drawE(ctx, w, h, t) {
+  ctx.clearRect(0,0,w,h);
+  ctx.fillStyle = '#0a0a0a';
+  ctx.fillRect(0,0,w,h);
+
+  const cx = w/2, cy = h/2;
+  const PHI = 1.6180339887;
+  const BAND_SPEED = 22; // px per second drifting inward
+  const NUM_BANDS = 5;
+  const BASE_RADIUS = 130; // outermost band at t=0
+
+  // Self-similar band radii: r_n = BASE_RADIUS / phi^n
+  // As they drift inward we offset by time
+  for (let b = 0; b < NUM_BANDS; b++) {
+    const r0 = BASE_RADIUS / Math.pow(PHI, b);
+    const drift = (t * BAND_SPEED) % (BASE_RADIUS - BASE_RADIUS / Math.pow(PHI, NUM_BANDS - 1) + 1);
+    const r = r0 - drift;
+    if (r < 6) continue;
+
+    const opacity = (0.06 + b * 0.03) * (r / BASE_RADIUS);
+    const DOTS_PER_BAND = Math.round(6 + b * 4);
+    for (let d = 0; d < DOTS_PER_BAND; d++) {
+      const angle = (d / DOTS_PER_BAND) * 2 * Math.PI + b * 0.4 + t * 0.08;
+      const dx = cx + Math.cos(angle) * r;
+      const dy = cy + Math.sin(angle) * r;
+      ctx.beginPath();
+      ctx.arc(dx, dy, 0.8, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(160,160,160,${opacity * 2.5})`;
+      ctx.fill();
+    }
+
+    // band ring
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(140,140,140,${opacity})`;
+    ctx.lineWidth = 0.4;
+    ctx.stroke();
+  }
+
+  // As a band passes the word width, it briefly brightens the letters
+  const wordZone = 70;
+  ctx.save();
+  ctx.translate(cx, cy);
+
+  const baseFont = 36;
+  ctx.font = `300 ${baseFont}px 'Courier New', monospace`;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  const totalW = ctx.measureText(WORD).width;
+  const lwidths = LETTERS.map(l => ctx.measureText(l).width);
+  let xStart = -totalW / 2;
+
+  for (let li = 0; li < LETTERS.length; li++) {
+    const lw = lwidths[li];
+    const letterCx = xStart + lw / 2;
+
+    // find closest band
+    let closestBandBright = 0;
+    for (let b = 0; b < NUM_BANDS; b++) {
+      const r0 = BASE_RADIUS / Math.pow(PHI, b);
+      const drift = (t * BAND_SPEED) % (BASE_RADIUS - BASE_RADIUS / Math.pow(PHI, NUM_BANDS - 1) + 1);
+      const r = r0 - drift;
+      const dist = Math.abs(r - Math.abs(letterCx));
+      if (dist < 18) closestBandBright = Math.max(closestBandBright, 1 - dist / 18);
+    }
+
+    const opacity = 0.55 + closestBandBright * 0.45;
+    ctx.fillStyle = `rgba(220,220,220,${opacity})`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(LETTERS[li], letterCx, 0);
+    xStart += lw;
+  }
+  ctx.restore();
+}
+
+// ─── animation loop ───────────────────────────────────────────────────────────
+const DRAWS = [drawA, drawB, drawC, drawD, drawE];
+let start = null;
+
+function loop(ts) {
+  if (!start) start = ts;
+  const t = (ts - start) / 1000;
+  DRAWS.forEach((fn, i) => {
+    const {ctx, w, h} = canvases[i];
+    fn(ctx, w, h, t);
+  });
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>archive · research · fieldwork — footsteps</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #0e0e0e; font-family: 'Courier New', monospace; }
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 3px;
+    padding: 3px;
+    background: #1a1a1a;
+  }
+  .cell { position: relative; background: #0e0e0e; }
+  canvas { display: block; width: 100%; }
+  .lbl {
+    position: absolute;
+    bottom: 13px; left: 16px;
+    font-size: 9px; letter-spacing: 0.2em;
+    color: #444; text-transform: uppercase;
+    pointer-events: none;
+  }
+  .lbl b { color: #777; font-weight: normal; }
+</style>
+</head>
+<body>
+<div class="grid" id="g"></div>
+<script>
+const W = 560, H = 360, DPR = devicePixelRatio || 1;
+const PHRASES = ['archive', 'research', 'fieldwork'];
+
+// ── helpers ──────────────────────────────────────────────────────────────────
+function lerp(a,b,t){return a+(b-a)*t;}
+function clamp(x,a,b){return Math.max(a,Math.min(b,x));}
+function ease(t){t=clamp(t,0,1);return t<.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2;}
+function easout(t){t=clamp(t,0,1);return 1-Math.pow(1-t,3);}
+
+// ── footprint path helper ─────────────────────────────────────────────────────
+// cx,cy = heel center. w,h = foot bounding box. left=true for left foot.
+function footprintPath(ctx, cx, cy, w, h, left) {
+  const sx = left ? 1 : -1; // mirror
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.scale(sx, 1);
+
+  // Sole — one bezier teardrop (heel at bottom, ball at top)
+  const hw = w * 0.5;
+  const heelW = w * 0.42;
+  const ballW = w * 0.48;
+  const arch = h * 0.30; // arch indentation on medial side
+
+  ctx.beginPath();
+  // Start at heel-right
+  ctx.moveTo(heelW * 0.5, 0);
+  // Right side up to ball
+  ctx.bezierCurveTo(
+    heelW * 0.7, -h * 0.18,
+    ballW * 0.6, -h * 0.55,
+    ballW * 0.5, -h * 0.62
+  );
+  // Across ball to left
+  ctx.bezierCurveTo(
+    ballW * 0.3, -h * 0.68,
+    -ballW * 0.3, -h * 0.68,
+    -ballW * 0.5, -h * 0.62
+  );
+  // Left (medial) side down with arch indentation
+  ctx.bezierCurveTo(
+    -ballW * 0.6, -h * 0.52,
+    -heelW * 0.25, -h * 0.34,
+    -heelW * 0.5, 0
+  );
+  // Heel bottom curve
+  ctx.bezierCurveTo(
+    -heelW * 0.65, h * 0.12,
+    heelW * 0.65, h * 0.12,
+    heelW * 0.5, 0
+  );
+  ctx.closePath();
+
+  // Toes — 5 ellipses above ball
+  const toeY = -h * 0.75;
+  const toeOffsets = [
+    { x: -ballW * 0.38, r: 0.11 * w }, // big toe (medial)
+    { x: -ballW * 0.14, r: 0.092 * w },
+    { x:  ballW * 0.06, r: 0.082 * w },
+    { x:  ballW * 0.24, r: 0.072 * w },
+    { x:  ballW * 0.38, r: 0.060 * w }, // pinky (lateral)
+  ];
+  for (const t of toeOffsets) {
+    ctx.moveTo(t.x + t.r, toeY);
+    ctx.ellipse(t.x, toeY, t.r, t.r * 1.12, 0, 0, Math.PI * 2);
+  }
+
+  ctx.restore();
+}
+
+// ── panel factory ─────────────────────────────────────────────────────────────
+const panels = [];
+function mkPanel(id, name) {
+  const cell = document.createElement('div');
+  cell.className = 'cell';
+  const cv = document.createElement('canvas');
+  cv.width = W * DPR; cv.height = H * DPR;
+  cv.style.height = H + 'px';
+  const lbl = document.createElement('div');
+  lbl.className = 'lbl';
+  lbl.innerHTML = `<b>${id}</b> &emsp;${name}`;
+  cell.append(cv, lbl);
+  document.getElementById('g').appendChild(cell);
+  const ctx = cv.getContext('2d');
+  ctx.scale(DPR, DPR);
+  return ctx;
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// Panel A — Staggered path: words in left/right footstep rhythm, walking
+// ════════════════════════════════════════════════════════════════════════════
+const ctxA = mkPanel('A', 'staggered path — typographic rhythm');
+
+function drawA(t) {
+  const ctx = ctxA;
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle='#0e0e0e'; ctx.fillRect(0,0,W,H);
+
+  // Three steps: alternating left/right, offset X, descending Y (walking down page)
+  const steps = [
+    { word: 'archive',   side: 'L', x: W*0.28, y: H*0.22, rot: -0.06 },
+    { word: 'research',  side: 'R', x: W*0.62, y: H*0.50, rot:  0.06 },
+    { word: 'fieldwork', side: 'L', x: W*0.30, y: H*0.78, rot: -0.06 },
+  ];
+
+  // Walking line — dotted centreline
+  ctx.save();
+  ctx.setLineDash([2, 9]);
+  ctx.strokeStyle = 'rgba(120,120,120,0.18)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(W*0.5, H*0.08);
+  ctx.lineTo(W*0.5, H*0.92);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.restore();
+
+  // Footprint outlines (faint) — draw first behind text
+  const fW = 44, fH = 72;
+  for (let i = 0; i < steps.length; i++) {
+    const s = steps[i];
+    const u = clamp((t*0.38 - i*0.28), 0, 1);
+    const op = easout(u) * 0.18;
+    if (op < 0.01) continue;
+    ctx.save();
+    ctx.translate(s.x, s.y + 8);
+    ctx.rotate(s.rot);
+    footprintPath(ctx, 0, 0, fW, fH, s.side === 'L');
+    ctx.fillStyle = `rgba(200,200,200,${op})`;
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // Words — staggered reveal
+  const fontSize = 26;
+  ctx.font = `300 ${fontSize}px 'Courier New', monospace`;
+
+  for (let i = 0; i < steps.length; i++) {
+    const s = steps[i];
+    // staggered entrance: each word waits
+    const u = clamp((t * 0.38 - i * 0.28 - 0.04), 0, 1);
+    if (u <= 0) continue;
+    const eu = easout(u);
+
+    ctx.save();
+    ctx.translate(s.x, s.y);
+    ctx.rotate(s.rot);
+
+    const tw = ctx.measureText(s.word).width;
+    // small underline
+    const lw = lerp(0, tw, eu);
+    ctx.strokeStyle = `rgb(160,160,160)`;
+    ctx.lineWidth = 0.6;
+    ctx.beginPath();
+    ctx.moveTo(-tw/2, fontSize*0.55);
+    ctx.lineTo(-tw/2 + lw, fontSize*0.55);
+    ctx.stroke();
+
+    // letter spacing — nudge each letter in
+    ctx.fillStyle = `rgb(220,220,220)`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(s.word, 0, 0);
+
+    // step number (tiny)
+    ctx.font = `300 9px 'Courier New', monospace`;
+    ctx.fillStyle = 'rgba(120,120,120,0.7)';
+    ctx.textAlign = s.side === 'L' ? 'right' : 'left';
+    const nudge = tw/2 + 10;
+    ctx.fillText(`0${i+1}`, s.side === 'L' ? -nudge : nudge, 0);
+    ctx.font = `300 ${fontSize}px 'Courier New', monospace`;
+
+    ctx.restore();
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// Panel B — Words inside footprint silhouettes (clipped fill)
+// ════════════════════════════════════════════════════════════════════════════
+const ctxB = mkPanel('B', 'word inside print — clip mask');
+
+function drawB(t) {
+  const ctx = ctxB;
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle='#0e0e0e'; ctx.fillRect(0,0,W,H);
+
+  // Three large foot silhouettes: left, right, left — walking across
+  const prints = [
+    { word: 'archive',   side: 'L', cx: W*0.22, cy: H*0.50, w: 90, h: 145, rot: -Math.PI*0.5 + 0.1 },
+    { word: 'research',  side: 'R', cx: W*0.50, cy: H*0.50, w: 90, h: 145, rot: -Math.PI*0.5 - 0.08 },
+    { word: 'fieldwork', side: 'L', cx: W*0.78, cy: H*0.50, w: 90, h: 145, rot: -Math.PI*0.5 + 0.05 },
+  ];
+
+  for (let i = 0; i < prints.length; i++) {
+    const p = prints[i];
+    const u = clamp((t * 0.35 - i * 0.25), 0, 1);
+    const eu = easout(u);
+    if (eu < 0.01) continue;
+
+    ctx.save();
+    ctx.translate(p.cx, p.cy);
+    ctx.rotate(p.rot);
+
+    // Foot outline (faint)
+    footprintPath(ctx, 0, 0, p.w, p.h, p.side === 'L');
+    ctx.strokeStyle = `rgba(160,160,160,${eu * 0.55})`;
+    ctx.lineWidth = 0.8;
+    ctx.stroke();
+
+    // Clip to foot shape then draw word inside
+    ctx.save();
+    footprintPath(ctx, 0, 0, p.w, p.h, p.side === 'L');
+    ctx.clip();
+
+    // Word — rotated 90° back so it reads horizontally inside the foot
+    ctx.rotate(-p.rot);
+    const fs = 15;
+    ctx.font = `300 ${fs}px 'Courier New', monospace`;
+    ctx.fillStyle = `rgba(220,220,220,${eu * 0.9})`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    // Tile the word vertically to fill the print
+    const tw = ctx.measureText(p.word).width;
+    for (let row = -3; row <= 3; row++) {
+      // alternate offset per row
+      const xoff = (row % 2 === 0) ? 0 : tw * 0.5;
+      for (let col = -2; col <= 2; col++) {
+        ctx.fillText(p.word, col * (tw + 6) + xoff, row * (fs * 1.6));
+      }
+    }
+    ctx.restore(); // end clip
+
+    ctx.restore();
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// Panel C — Pressure imprint: word stamps in, ripple spreads, stays
+// ════════════════════════════════════════════════════════════════════════════
+const ctxC = mkPanel('C', 'pressure stamp — step lands');
+
+function drawC(t) {
+  const ctx = ctxC;
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle='#0e0e0e'; ctx.fillRect(0,0,W,H);
+
+  const STEP_INTERVAL = 1.8; // seconds between steps
+  const STEP_DUR = 1.0;      // seconds for full animation of one step
+
+  const steps = [
+    { word: 'archive',   side: 'L', x: W*0.25, y: H*0.30, rot:  0.08 },
+    { word: 'research',  side: 'R', x: W*0.60, y: H*0.52, rot: -0.10 },
+    { word: 'fieldwork', side: 'L', x: W*0.28, y: H*0.75, rot:  0.06 },
+  ];
+
+  const cycle = (STEP_INTERVAL * steps.length) + 1.2;
+  const tCycle = t % cycle;
+
+  const fW = 58, fH = 95;
+  const fs = 13;
+  ctx.font = `300 ${fs}px 'Courier New', monospace`;
+
+  for (let i = 0; i < steps.length; i++) {
+    const s = steps[i];
+    const tStart = i * STEP_INTERVAL;
+    const local = tCycle - tStart;
+
+    // How "settled" this step is (0=fresh, 1=fully stamped)
+    const imprintU = clamp(local / STEP_DUR, 0, 1);
+    const eu = easout(imprintU);
+    if (eu < 0.01) continue;
+
+    ctx.save();
+    ctx.translate(s.x, s.y);
+    ctx.rotate(s.rot);
+
+    // Ripple — decaying ring
+    const rippleU = clamp(local / (STEP_DUR * 1.4), 0, 1);
+    const rippleR = lerp(fW * 0.3, fW * 1.0, easout(rippleU));
+    const rippleA = (1 - rippleU) * 0.25;
+    if (rippleA > 0.01) {
+      ctx.beginPath();
+      ctx.arc(0, -fH * 0.2, rippleR, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(200,200,200,${rippleA})`;
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+    }
+
+    // Foot fill — pressure darkens/lightens from centre
+    ctx.save();
+    footprintPath(ctx, 0, 0, fW, fH, s.side === 'L');
+    const grd = ctx.createRadialGradient(0, -fH*0.3, 0, 0, -fH*0.3, fH*0.65);
+    grd.addColorStop(0,   `rgba(195,195,195,${eu * 0.45})`);
+    grd.addColorStop(0.5, `rgba(150,150,150,${eu * 0.22})`);
+    grd.addColorStop(1,   `rgba(100,100,100,${eu * 0.08})`);
+    ctx.fillStyle = grd;
+    ctx.fill();
+    ctx.strokeStyle = `rgba(180,180,180,${eu * 0.5})`;
+    ctx.lineWidth = 0.7;
+    ctx.stroke();
+    ctx.restore();
+
+    // Word — stamped below the print
+    ctx.fillStyle = `rgba(210,210,210,${eu})`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText(s.word, 0, fH * 0.18);
+
+    // Tiny horizontal rule
+    const tw = ctx.measureText(s.word).width;
+    ctx.strokeStyle = `rgba(150,150,150,${eu * 0.6})`;
+    ctx.lineWidth = 0.5;
+    ctx.beginPath();
+    ctx.moveTo(-tw/2, fH * 0.14);
+    ctx.lineTo( tw/2, fH * 0.14);
+    ctx.stroke();
+
+    ctx.restore();
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// Panel D — Letters-as-toes: letters arranged in the arc of a footprint
+// ════════════════════════════════════════════════════════════════════════════
+const ctxD = mkPanel('D', 'letters as anatomy — toe arc + sole');
+
+function drawD(t) {
+  const ctx = ctxD;
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle='#0e0e0e'; ctx.fillRect(0,0,W,H);
+
+  // Three foot-shaped letter arrangements, side by side
+  const feet = [
+    { word: 'archive',   cx: W*0.20, cy: H*0.50, scale: 0.9, side: 'L' },
+    { word: 'research',  cx: W*0.50, cy: H*0.50, scale: 0.9, side: 'R' },
+    { word: 'fieldwork', cx: W*0.80, cy: H*0.50, scale: 0.9, side: 'L' },
+  ];
+
+  for (let fi = 0; fi < feet.length; fi++) {
+    const f = feet[fi];
+    const u = clamp((t * 0.32 - fi * 0.22), 0, 1);
+    if (u <= 0) continue;
+    const eu = easout(u);
+
+    const letters = f.word.split('');
+    const n = letters.length;
+    const sc = f.scale;
+    // Foot height in px
+    const fH = 130 * sc;
+    const fW = 78 * sc;
+
+    ctx.save();
+    ctx.translate(f.cx, f.cy);
+    const sx = f.side === 'L' ? 1 : -1;
+    ctx.scale(sx, 1);
+
+    // Ghost foot outline behind
+    footprintPath(ctx, 0, 0, fW, fH, true);
+    ctx.strokeStyle = `rgba(80,80,80,${eu * 0.5})`;
+    ctx.lineWidth = 0.5;
+    ctx.stroke();
+
+    // Letter placement:
+    // Last 5 letters → toes (arc at top of foot)
+    // First (n-5) letters → sole (running down arch)
+    const toeLetters   = letters.slice(Math.max(0, n - 5));
+    const soleLetters  = letters.slice(0, Math.max(0, n - 5));
+
+    const toeFS = 11 * sc;
+    const soleFS = 10 * sc;
+
+    // Toes: distributed across arc, y = -fH*0.72, x varies with slight arc
+    const toeCount = toeLetters.length;
+    const toeXRange = fW * 0.78;
+    const toeY = -fH * 0.73;
+    // Arc: y adjusts slightly (shorter toes toward edges)
+    for (let li = 0; li < toeCount; li++) {
+      const frac = toeCount === 1 ? 0.5 : li / (toeCount - 1);
+      const tx = lerp(-toeXRange * 0.5, toeXRange * 0.5, frac);
+      // Arch: middle toes slightly higher
+      const arcOffset = -Math.sin(frac * Math.PI) * fH * 0.05;
+      const lv = clamp((t * 0.32 * 7 - fi * 0.22 * 7 - li * 0.12) * 1.8, 0, 1);
+      const opac = easout(lv) * eu;
+
+      ctx.font = `300 ${toeFS}px 'Courier New', monospace`;
+      ctx.fillStyle = `rgba(210,210,210,${opac})`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(toeLetters[li], tx, toeY + arcOffset);
+
+      // small dot under each toe letter (toe pad)
+      ctx.beginPath();
+      ctx.arc(tx, toeY + arcOffset + toeFS * 0.8, 1.5 * sc, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(140,140,140,${opac * 0.5})`;
+      ctx.fill();
+    }
+
+    // Sole: letters run down the arch/ball area
+    const soleCount = soleLetters.length;
+    for (let li = 0; li < soleCount; li++) {
+      const frac = soleCount <= 1 ? 0.5 : li / (soleCount - 1);
+      // slightly curved column down centre-ish
+      const sy2 = lerp(-fH * 0.58, fH * 0.02, frac);
+      const sx2 = lerp(-fW * 0.05, fW * 0.08, frac); // slight medial drift
+      const lv = clamp((t * 0.32 * 7 - fi * 0.22 * 7 - (toeCount + li) * 0.12) * 1.8, 0, 1);
+      const opac = easout(lv) * eu;
+
+      ctx.font = `300 ${soleFS}px 'Courier New', monospace`;
+      ctx.fillStyle = `rgba(190,190,190,${opac})`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(soleLetters[li], sx2, sy2);
+    }
+
+    // Label below
+    ctx.font = `300 8px 'Courier New', monospace`;
+    ctx.fillStyle = `rgba(100,100,100,${eu})`;
+    ctx.textAlign = 'center';
+    ctx.fillText(f.word, 0, fH * 0.30);
+
+    ctx.restore();
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// animation loop
+// ════════════════════════════════════════════════════════════════════════════
+panels.push(drawA, drawB, drawC, drawD);
+let start = null;
+function loop(ts) {
+  if (!start) start = ts;
+  const t = (ts - start) / 1000;
+  panels.forEach(fn => fn(t));
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

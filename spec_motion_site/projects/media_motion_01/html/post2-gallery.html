@@ -335,6 +335,16 @@
     window.__SPEC_MOTION_ZOOMED_IN_START__ = params.get('motionZoomedIn') === '1';
     /** `motionSegment=45` + **`liveMotions27`**: start at post-rotation Still 05 pose; only phrase fade / loop timing (no spin). */
     window.__SPEC_MOTION_SPECTRUM_SETTLED__ = params.get('motionSpectrumSettled') === '1';
+    /** `motionSegment=78` without **`liveMotions27`**: same as settled when **`1`** (hub 2.5). */
+    window.__SPEC_MOTION_SPACE_SETTLED__ = params.get('motionSpaceSettled') === '1';
+    /** `motionSegment=78` + **`liveMotions27`**: opt **in** to full −120° rotation (default is settled). */
+    window.__SPEC_MOTION_SPACE_ROTATION__ = params.get('motionSpaceRotation') === '1';
+    /** `motionSegment=67` hub duplicate: animated **inspect** label + optional inspect-exclusive debug alpha. */
+    window.__SPEC_INSPECT_ANIM_LABEL__ = params.get('inspectAnimLabel') === '1';
+    if (params.has('inspectExclusiveDebugAlpha')) {
+      const a = Number(params.get('inspectExclusiveDebugAlpha'));
+      window.__SPEC_INSPECT_EXCLUSIVE_DEBUG_ALPHA__ = Number.isFinite(a) ? a : 128;
+    }
     const EXTENDED_MODE = params.get('max') === '5';
     window.__SPEC_GALLERY_EXTENDED__ = EXTENDED_MODE;
     const FRAME_HASH_TO_NUM = EXTENDED_MODE
@@ -488,6 +498,8 @@
     updateUI();
   </script>
   <script src="../js/modules/easing.js"></script>
+  <script src="../js/modules/featureFlags.js"></script>
+  <script src="../js/modules/inspectReader.js"></script>
   <script src="../js/modules/vennGeometry.js"></script>
   <script src="../js/modules/spectrumReader.js"></script>
   <script src="../js/sketch.js"></script>

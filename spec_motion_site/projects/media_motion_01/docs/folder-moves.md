@@ -43,7 +43,7 @@ html/
 
 ---
 
-## Step 9 — Move dev pages into `html/dev/`
+## ~~Step 9 — Move dev pages into `html/dev/`~~ ✓ Done
 **Risk: low · Nothing external links to these**
 
 Files to move:
@@ -78,7 +78,7 @@ Move and fix one file at a time. Open each in browser to verify it loads.
 
 ---
 
-## Step 10 — Move gallery shells into `html/galleries/`
+## ~~Step 10 — Move gallery shells into `html/galleries/`~~ ✓ Done
 **Risk: medium · Requires updates in post1-2.html and inside each shell**
 
 Files to move:
@@ -175,4 +175,28 @@ css/galleryShell.css           ←  loaded by every gallery
 spec_motion_site/post1-2.html              →  projects/.../html/post1-2.html
 html/redirects/testing.html               →  ../post1-2.html
 html/redirects/post2.html                 →  ../post1-2.html
+```
+
+---
+
+## ~~Step 11 — Extract `js/modules/`~~ ✓ Done
+
+Three pure-computation modules, namespace pattern (`const X = {}`), no p5:
+
+- `js/modules/easing.js` — `Easing.{clamp01, lerp, easeOutCubic, easeInOutCubic, smootherstep, easeInExpo, easeOutExpo}`
+- `js/modules/vennGeometry.js` — `VennGeometry.{distSq, pointInsideCircle, pointOutsideCircle, isExclusiveRegionGeometric, isSpectrumExclusiveReaderScanClip, isSpeckSpectrumOverlapGeometric, isInspectSpectrumOverlapGeometric, isSpeckInspectOverlapGeometric, normalizeAnglePi, makeTextUpright}`
+- `js/modules/spectrumReader.js` — `SpectrumReader.{screenToWorld, worldToScreen, scanStripsHitInterval, verticalRunsAtScreenX, sweepSpanAlongWord, sweepLocal}` (uses `Easing.lerp`)
+
+`post2-gallery.html` loads all three before `sketch.js`. `sketch.js` already delegates to module functions throughout.
+
+---
+
+## Do not touch
+```
+html/post1-2.html              ←  core hub, 700+ lines, many internal links
+html/post2-gallery.html        ←  loaded as iframe by almost every page
+js/sketch.js                   ←  loaded by almost every page
+js/galleryShell.js             ←  loaded by every gallery
+css/galleryShell.css           ←  loaded by every gallery
+js/modules/                    ←  loaded before sketch.js via post2-gallery.html
 ```

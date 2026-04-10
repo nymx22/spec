@@ -77,10 +77,12 @@ SpectrumReader.verticalRunsAtScreenX = function (scanSx, inExclusiveFn, yStepPx,
 /**
  * Left/right extent along the label baseline through `(wx, wy)` where `inExclusiveFn(world)` is true.
  * Returns `s` in label-local units: world point `(wx + cos θ·s, wy + sin θ·s)`.
+ * @param { { pickWidestRun?: boolean } } [opts] — **`pickWidestRun`**: use the **longest** inside segment on the line (slide **`34`** glyph-hidden reader: label center can sit in a short pocket while the spectrum-exclusive chord is longer).
  */
-SpectrumReader.sweepSpanAlongWord = function (wx, wy, cosT, sinT, rFinal, inExclusiveFn) {
-  const step = Math.max(rFinal * 0.028, 0.45);
-  const span = 3.6 * rFinal;
+SpectrumReader.sweepSpanAlongWord = function (wx, wy, cosT, sinT, rFinal, inExclusiveFn, opts) {
+  const pickWidest = opts && opts.pickWidestRun === true;
+  const step = Math.max(rFinal * 0.022, 0.38);
+  const span = (pickWidest ? 4.85 : 3.6) * rFinal;
   const samples = [];
   for (let s = -span; s <= span; s += step) {
     const inside = inExclusiveFn(wx + cosT * s, wy + sinT * s);
@@ -99,11 +101,21 @@ SpectrumReader.sweepSpanAlongWord = function (wx, wy, cosT, sinT, rFinal, inExcl
     i = j;
   }
   if (runs.length === 0) return null;
-  const hit0 = runs.find((r) => r.xLeft <= 0 && r.xRight >= 0);
-  if (hit0) return hit0;
-  return runs.reduce((a, b) =>
-    Math.abs((a.xLeft + a.xRight) / 2) <= Math.abs((b.xLeft + b.xRight) / 2) ? a : b,
-  );
+  let chosen;
+  if (pickWidest) {
+    chosen = runs.reduce((a, b) =>
+      b.xRight - b.xLeft > a.xRight - a.xLeft ? b : a,
+    );
+  } else {
+    const hit0 = runs.find((r) => r.xLeft <= 0 && r.xRight >= 0);
+    chosen = hit0
+      ? hit0
+      : runs.reduce((a, b) =>
+          Math.abs((a.xLeft + a.xRight) / 2) <= Math.abs((b.xLeft + b.xRight) / 2) ? a : b,
+        );
+  }
+  const edgePad = step * 0.52;
+  return { xLeft: chosen.xLeft - edgePad, xRight: chosen.xRight + edgePad };
 };
 
 /** Ping-pong `xSweepL` along [xLeft,xRight] for normalized time `u` in [0,1); `sweepFrac` is the sweep portion of the cycle. */

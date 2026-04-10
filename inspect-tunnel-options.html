@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>inspect — tunnel variants</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #111; font-family: 'Courier New', monospace; }
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 3px;
+    padding: 3px;
+    background: #222;
+  }
+  .cell { position: relative; }
+  canvas { display: block; width: 100%; }
+  .label {
+    position: absolute;
+    bottom: 14px; left: 18px;
+    font-size: 9px;
+    letter-spacing: 0.22em;
+    color: #555;
+    pointer-events: none;
+    text-transform: uppercase;
+  }
+  .label b { color: #888; font-weight: normal; }
+</style>
+</head>
+<body>
+<div class="grid" id="grid"></div>
+
+<script>
+const W = 560, H = 280, DPR = devicePixelRatio || 1;
+const WORD = 'inspect';
+const PERIOD = 6.0;    // seconds per loop
+const KSCALE = 0.62;   // ratio between successive layers (tighter = denser tunnel)
+const LAYERS = 9;
+const SPIRAL = 1.8;    // degrees of twist per layer
+
+function lerp(a, b, t) { return a + (b - a) * t; }
+function clamp(x, a, b) { return Math.max(a, Math.min(b, x)); }
+
+const VARIANTS = [
+  { id: '1a', name: 'Outline  ·  stroke weight depth cue', bg: '#0a0a0a', fg: '#e8e8e8', mode: 'outline' },
+  { id: '1b', name: 'Fill  ·  value-coded solid layers',   bg: '#0a0a0a', fg: '#e8e8e8', mode: 'fill' },
+  { id: '1c', name: 'Invert  ·  light bg, dark letterforms', bg: '#e8e8e8', fg: '#111',   mode: 'invert' },
+  { id: '1d', name: 'Grid  ·  letterforms + converging lines', bg: '#0a0a0a', fg: '#e8e8e8', mode: 'grid' },
+];
+
+const ctxs = VARIANTS.map(v => {
+  const cell = document.createElement('div');
+  cell.className = 'cell';
+  const cv = document.createElement('canvas');
+  cv.width = W * DPR; cv.height = H * DPR;
+  cv.style.height = H + 'px';
+  cell.appendChild(cv);
+  const lbl = document.createElement('div');
+  lbl.className = 'label';
+  lbl.innerHTML = `<b>${v.id}</b> &nbsp;${v.name}`;
+  cell.appendChild(lbl);
+  document.getElementById('grid').appendChild(cell);
+  const ctx = cv.getContext('2d');
+  ctx.scale(DPR, DPR);
+  return { ctx, v };
+});
+
+// ─── shared: compute layer transforms ────────────────────────────────────────
+// phase 0→1: continuous zoom-in. Each layer i has scale = KSCALE^(i - phase).
+// Draw back-to-front (large i first since small scale = far).
+function layerScale(i, phase) {
+  return Math.pow(KSCALE, i - phase);
+}
+function layerRot(i, phase) {
+  return (i - phase) * SPIRAL * Math.PI / 180;
+}
+
+// ─── 1a: outline only, stroke weight as depth ────────────────────────────────
+function draw1a(ctx, w, h, t) {
+  const { bg, fg } = VARIANTS[0];
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, w, h);
+
+  const cx = w / 2, cy = h / 2;
+  const phase = (t % PERIOD) / PERIOD;
+  const baseFont = 40;
+
+  // draw back to front (layer LAYERS-1 first = smallest/furthest)
+  for (let i = LAYERS - 1; i >= 0; i--) {
+    const sc = layerScale(i, phase);
+    if (sc > 6) continue; // too big, skip — fills frame and gets clipped anyway
+    const rot = layerRot(i, phase);
+
+    // stroke weight: near = thick, far = hairline
+    // at sc=1 (foreground), sw=2px. At sc=0.1, sw=0.3px.
+    const sw = clamp(sc * 2.0, 0.2, 2.5);
+    if (sw < 0.15) continue;
+
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(rot);
+    ctx.scale(sc, sc);
+
+    ctx.font = `300 ${baseFont}px 'Courier New', monospace`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.strokeStyle = fg;
+    ctx.lineWidth = sw / sc; // compensate for scale so it stays as sw in screen px
+    ctx.strokeText(WORD, 0, 0);
+
+    // underline tick at same weight
+    const tw = ctx.measureText(WORD).width;
+    ctx.beginPath();
+    ctx.moveTo(-tw / 2, baseFont * 0.58);
+    ctx.lineTo( tw / 2, baseFont * 0.58);
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
+// ─── 1b: solid fill, value shift — near=bright, far=dark ────────────────────
+function draw1b(ctx, w, h, t) {
+  const { bg } = VARIANTS[1];
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, w, h);
+
+  const cx = w / 2, cy = h / 2;
+  const phase = (t % PERIOD) / PERIOD;
+  const baseFont = 40;
+
+  for (let i = LAYERS - 1; i >= 0; i--) {
+    const sc = layerScale(i, phase);
+    if (sc > 6 || sc < 0.05) continue;
+    const rot = layerRot(i, phase);
+
+    // value: at sc=1 → 220 (light gray). At sc=0 → 30 (dark, barely visible).
+    // Use log scale so middle distances are well separated.
+    const vFrac = clamp(Math.log(sc + 0.05) / Math.log(1.05) * 0.18 + 0.85, 0, 1);
+    const v = Math.round(vFrac * 220);
+    const col = `rgb(${v},${v},${v})`;
+
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(rot);
+    ctx.scale(sc, sc);
+
+    ctx.font = `300 ${baseFont}px 'Courier New', monospace`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = col;
+    ctx.fillText(WORD, 0, 0);
+
+    // underline
+    const tw = ctx.measureText(WORD).width;
+    ctx.strokeStyle = col;
+    ctx.lineWidth = 1 / sc;
+    ctx.beginPath();
+    ctx.moveTo(-tw / 2, baseFont * 0.58);
+    ctx.lineTo( tw / 2, baseFont * 0.58);
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
+// ─── 1c: inverted — white bg, dark letterforms, fill value reversed ──────────
+function draw1c(ctx, w, h, t) {
+  const { bg, fg } = VARIANTS[2];
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, w, h);
+
+  const cx = w / 2, cy = h / 2;
+  const phase = (t % PERIOD) / PERIOD;
+  const baseFont = 40;
+
+  for (let i = LAYERS - 1; i >= 0; i--) {
+    const sc = layerScale(i, phase);
+    if (sc > 6 || sc < 0.05) continue;
+    const rot = layerRot(i, phase);
+
+    // on white bg: near = very dark, far = light gray (almost invisible against bg)
+    const vFrac = clamp(Math.log(sc + 0.05) / Math.log(1.05) * 0.18 + 0.85, 0, 1);
+    // invert: near(vFrac≈1) → dark, far(vFrac≈0) → light
+    const v = Math.round((1 - vFrac * 0.9) * 230);
+    const col = `rgb(${v},${v},${v})`;
+
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(rot);
+    ctx.scale(sc, sc);
+
+    ctx.font = `300 ${baseFont}px 'Courier New', monospace`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = col;
+    ctx.fillText(WORD, 0, 0);
+
+    const tw = ctx.measureText(WORD).width;
+    ctx.strokeStyle = col;
+    ctx.lineWidth = 1 / sc;
+    ctx.beginPath();
+    ctx.moveTo(-tw / 2, baseFont * 0.58);
+    ctx.lineTo( tw / 2, baseFont * 0.58);
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
+// ─── 1d: outline + perspective grid lines converging to vanishing point ───────
+function draw1d(ctx, w, h, t) {
+  const { bg, fg } = VARIANTS[3];
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, w, h);
+
+  const cx = w / 2, cy = h / 2;
+  const phase = (t % PERIOD) / PERIOD;
+  const baseFont = 40;
+
+  // Draw converging grid lines first (behind all text)
+  // Lines radiate from cx,cy outward, spaced by angle
+  // They scroll: as phase increases, lines rotate slightly
+  const NLINES = 18;
+  ctx.save();
+  ctx.translate(cx, cy);
+  for (let i = 0; i < NLINES; i++) {
+    const angle = (i / NLINES) * Math.PI * 2 + phase * 0.4;
+    const len = Math.max(w, h) * 0.8;
+    const lineAlong = Math.floor(i * 2) / (NLINES * 2); // 0→1
+    // brightness based on angle distance from horizontal (make horizontal ones brighter)
+    const brightness = 28;
+    ctx.strokeStyle = `rgb(${brightness},${brightness},${brightness})`;
+    ctx.lineWidth = 0.5;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(Math.cos(angle) * len, Math.sin(angle) * len);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // Concentric ellipses (perspective floor rings) — subtle
+  for (let ri = 0; ri < 6; ri++) {
+    // rings zoom with time
+    const ringPhase = ((ri / 6) + phase) % 1;
+    const rr = ringPhase * Math.min(w, h) * 0.52;
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.beginPath();
+    ctx.ellipse(0, 0, rr, rr * 0.28, 0, 0, Math.PI * 2);
+    const bright = Math.round((1 - ringPhase) * 35);
+    ctx.strokeStyle = `rgb(${bright},${bright},${bright})`;
+    ctx.lineWidth = 0.5;
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // Text tunnel — outline only, stroke weight
+  for (let i = LAYERS - 1; i >= 0; i--) {
+    const sc = layerScale(i, phase);
+    if (sc > 5 || sc < 0.05) continue;
+    const rot = layerRot(i, phase);
+    const sw = clamp(sc * 2.2, 0.25, 2.5);
+
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(rot);
+    ctx.scale(sc, sc);
+
+    ctx.font = `300 ${baseFont}px 'Courier New', monospace`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.strokeStyle = fg;
+    ctx.lineWidth = sw / sc;
+    ctx.strokeText(WORD, 0, 0);
+
+    const tw = ctx.measureText(WORD).width;
+    ctx.beginPath();
+    ctx.moveTo(-tw / 2, baseFont * 0.58);
+    ctx.lineTo( tw / 2, baseFont * 0.58);
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
+// ─── animation loop ────────────────────────────────────────────────────────
+const DRAWS = [draw1a, draw1b, draw1c, draw1d];
+let start = null;
+
+function loop(ts) {
+  if (!start) start = ts;
+  const t = (ts - start) / 1000;
+  ctxs.forEach(({ ctx, v }, i) => DRAWS[i](ctx, W, H, t));
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

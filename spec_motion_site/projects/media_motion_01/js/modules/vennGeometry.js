@@ -31,6 +31,21 @@ VennGeometry.isExclusiveRegionGeometric = function (px, py, i, centers, rFinal) 
   return true;
 };
 
+/** Speck disk-exclusive lobe (same as sketch `isInsideSpeckExclusive` / `isExclusiveRegionGeometric(..., 0, ...)`). */
+VennGeometry.inSpeckExclusiveWorld = function (px, py, centers, rFinal) {
+  return VennGeometry.isExclusiveRegionGeometric(px, py, 0, centers, rFinal);
+};
+
+/** Spectrum disk-exclusive lobe (`isExclusiveRegionGeometric(..., 2, ...)`). Used for reader bar masks on slide `45`. */
+VennGeometry.inSpectrumExclusiveWorld = function (px, py, centers, rFinal) {
+  return VennGeometry.isExclusiveRegionGeometric(px, py, 2, centers, rFinal);
+};
+
+/** Inspect disk-exclusive lobe (`isExclusiveRegionGeometric(..., 1, ...)`). */
+VennGeometry.inInspectExclusiveWorld = function (px, py, centers, rFinal) {
+  return VennGeometry.isExclusiveRegionGeometric(px, py, 1, centers, rFinal);
+};
+
 /**
  * Reader scan clip: same non-spectrum exclusions as `isExclusiveRegionGeometric(..., 2, ...)` (other disks at `rFinal`),
  * but spectrum disk radius is `rFinal + spectrumOutset` so the bar can reach the drawn ring (outer isolated edge).
@@ -87,4 +102,44 @@ VennGeometry.makeTextUpright = function (theta) {
   if (t > Math.PI / 2) t -= Math.PI;
   if (t < -Math.PI / 2) t += Math.PI;
   return t;
+};
+
+/** Clamp `(px,py)` to the closed disk centered at `(cx,cy)` with radius `r`. */
+VennGeometry.clampPointToCircle = function (px, py, cx, cy, r) {
+  const dx = px - cx;
+  const dy = py - cy;
+  const d = Math.hypot(dx, dy);
+  if (d <= r || d === 0) return { x: px, y: py };
+  const s = r / d;
+  return { x: cx + dx * s, y: cy + dy * s };
+};
+
+/**
+ * Half the Venn ring stroke in **world** units (matches `scale(camZoom)` + `strokeWeight(ringStrokeLs * ls)`).
+ */
+VennGeometry.ringOutsetWorld = function (ringStrokeLs, ls, camZoom) {
+  return (ringStrokeLs * ls) / (2 * Math.max(camZoom, 1e-4));
+};
+
+/**
+ * Horizontal center and half-width of the speck-exclusive region at world `py`, or `null` if empty.
+ * `inSpeckExclusiveFn(px, py)` must match the sketch’s speck-exclusive test for `targets` / `rFinal`.
+ */
+VennGeometry.speckExclusiveSpanAtY = function (py, targets, rFinal, inSpeckExclusiveFn) {
+  const T = targets[0];
+  const dy = py - T.y;
+  const disc = rFinal * rFinal - dy * dy;
+  if (disc <= 0) return null;
+  const xHalf = Math.sqrt(disc);
+  const step = Math.max(0.35, xHalf / 100);
+  let xMin = null;
+  let xMax = null;
+  for (let x = T.x - xHalf; x <= T.x + xHalf + 1e-6; x += step) {
+    if (inSpeckExclusiveFn(x, py)) {
+      if (xMin === null || x < xMin) xMin = x;
+      if (xMax === null || x > xMax) xMax = x;
+    }
+  }
+  if (xMin === null || xMax === null) return null;
+  return { cx: (xMin + xMax) / 2, halfW: (xMax - xMin) / 2 };
 };
