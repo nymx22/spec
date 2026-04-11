@@ -84,7 +84,7 @@ const INSPECT_SWEEP_PERIOD_MS = 3800;
 const INSPECT_RISE_MS = 320;
 const INSPECT_HOLD_MS = 220;
 const INSPECT_FALL_MS = 1100;
-const INSPECT_ZOOM_PEAK = 2.5;
+const INSPECT_ZOOM_PEAK = 2.2;
 const INSPECT_IDLE_AMP = 0.06;
 const INSPECT_IDLE_PERIOD_S = 6.5;
 const INSPECT_IDLE_OFFSET_BY_LETTER = [0, 0.9, 1.8, 2.6, 3.5, 4.2, 5.1];
@@ -94,14 +94,8 @@ const INSPECT_ANIM = {
   triggered: new Array(Array.from(WORDS[1]).length).fill(0),
   idleOffset: INSPECT_IDLE_OFFSET_BY_LETTER,
 };
-/** Shared by compact frame **4** (`45` + **`inspectAnimLabel`**) and frame **5** (`67` / **`56`** + anim): **INSPECT_STILL_PHRASES** timing. */
-const G67_INSPECT_ANIM_PHRASE_FADE_IN_MS = 1300;
-const G67_INSPECT_ANIM_PHRASE_HOLD_MS = 2000;
-const G67_INSPECT_ANIM_PHRASE_FADE_OUT_MS = 1300;
-const G67_INSPECT_ANIM_PHRASE_CYCLE_MS =
-  G67_INSPECT_ANIM_PHRASE_FADE_IN_MS +
-  G67_INSPECT_ANIM_PHRASE_HOLD_MS +
-  G67_INSPECT_ANIM_PHRASE_FADE_OUT_MS;
+/** Hub **`67`** + **`inspectAnimLabel`**: ease from static **inspect** (scale **1**) into sweep/zoom after **`G67_ROT_MS`** (aligned with archive phrase fade). */
+const INSPECT_POST_ROT_MOTION_RAMP_MS = 500;
 const TOTAL_LETTERS = 5 + 7 + 8; // 20
 
 const sGap = 50; // vertical spacing for three words inside single circle
@@ -193,6 +187,7 @@ function speckExclusiveRedDebugGridParams(ls, rFinal) {
  * `bboxCircleIndex`: only sample that circle’s bbox (the lobe lies inside that disk); finer step + pad reduce edge gaps.
  */
 function debugG2DrawExclusiveFillGrid(testFn, centers, rFinal, ls, bboxCircleIndex, fillAlpha) {
+  if (FeatureFlags.liveMotions27()) return;
   const a = fillAlpha !== undefined && fillAlpha !== null ? fillAlpha : 128;
   if (a <= 0) return;
   const { step, cellDraw, pad } = speckExclusiveRedDebugGridParams(ls, rFinal);
@@ -219,6 +214,7 @@ function debugG2DrawExclusiveFillGrid(testFn, centers, rFinal, ls, bboxCircleInd
 
 /** Sample `testFn` on a fixed world axis-aligned rect (e.g. speck∩spectrum overlap). */
 function debugG2DrawFillGridWorldRect(testFn, minX, maxX, minY, maxY, rFinal, ls) {
+  if (FeatureFlags.liveMotions27()) return;
   push();
   noStroke();
   fill(255, 0, 0, 128);
@@ -714,6 +710,144 @@ function drawSeg45SpectrumReaderSpectrumLabel(
 }
 
 /**
+ * Spectrum-style masked scan + glyphs + glitch for **`speck`** (**`0`**) or **`inspect`** (**`1`**) **exclusive** lobes.
+ * Hub **2.7** slide **11**: **`inspect`** uses this; **speck** uses **sediment** when **`liveMotionsDesign`** (see compact frame **6** **`seg78SpeckSedimentFx`**).
+ */
+function drawDiskExclusiveReaderLabel(
+  targets,
+  rFinal,
+  ls,
+  wx,
+  wy,
+  theta,
+  vennTextPx,
+  word,
+  cam,
+  diskIndex,
+) {
+  const chars = Array.from(word);
+  const n = chars.length;
+  const tun = FeatureFlags.spectrumReaderTuning(SPECTRUM_READER_TUNING);
+  const cycleMs = tun.cycleMs;
+  const sweepFrac = SPECTRUM_READER_SWEEP_FRAC;
+  const ringOutWorld = VennGeometry.ringOutsetWorld(
+    SPECTRUM_READER_CLIP_VENN_RING_STROKE_LS,
+    ls,
+    cam.camZoom,
+  );
+  const inExSweep =
+    diskIndex === 0
+      ? (px, py) => VennGeometry.isSpeckExclusiveReaderScanClip(px, py, targets, rFinal, ringOutWorld)
+      : (px, py) => VennGeometry.isInspectExclusiveReaderScanClip(px, py, targets, rFinal, ringOutWorld);
+
+  push();
+  translate(wx, wy);
+  rotate(theta);
+  textAlign(CENTER, CENTER);
+  textSize(vennTextPx);
+  if (uiFont) textFont(uiFont);
+  let tw = 0;
+  for (let i = 0; i < n; i++) {
+    tw += textWidth(chars[i]);
+  }
+  const centers = [];
+  let run = -tw / 2;
+  for (let i = 0; i < n; i++) {
+    const cw = textWidth(chars[i]);
+    centers.push(run + cw / 2);
+    run += cw;
+  }
+  const cosT = Math.cos(theta);
+  const sinT = Math.sin(theta);
+  const lobeSpan = SpectrumReader.sweepSpanAlongWord(wx, wy, cosT, sinT, rFinal, inExSweep, undefined);
+  const xLeft = lobeSpan ? lobeSpan.xLeft : -tw / 2 - 4 * ls;
+  const xRight = lobeSpan ? lobeSpan.xRight : tw / 2 + 4 * ls;
+  pop();
+
+  const B0 = SpectrumReader.worldToScreen(wx, wy, cam);
+  const B1 = SpectrumReader.worldToScreen(wx + cosT, wy + sinT, cam);
+  let vbx = B1.x - B0.x;
+  let vby = B1.y - B0.y;
+  const vbl = Math.hypot(vbx, vby);
+  if (vbl > 1e-6) {
+    vbx /= vbl;
+    vby /= vbl;
+  } else {
+    vbx = 1;
+    vby = 0;
+  }
+  const longX = -vby;
+  const longY = vbx;
+  const barAngleRad = Math.atan2(longY, longX) - Math.PI * 0.5;
+  const spanLenGlitch =
+    Math.hypot(width, height) * SPECTRUM_READER_BAR_SPAN_DIAG_MUL + SPECTRUM_READER_BAR_SPAN_PAD_PX;
+
+  const readerBarDefs = [
+    {
+      cycleMul: SPECTRUM_READER_EXTRA_A_BAR_CYCLE_MUL,
+      strokeLs: SPECTRUM_READER_SCAN_STROKE_EXTRA_B_LS,
+    },
+    {
+      cycleMul: SPECTRUM_READER_SLOW_BAR_CYCLE_MUL,
+      strokeLs: SPECTRUM_READER_SCAN_STROKE_SLOW_LS,
+    },
+    {
+      cycleMul: SPECTRUM_READER_EXTRA_B_BAR_CYCLE_MUL,
+      strokeLs: SPECTRUM_READER_SCAN_STROKE_EXTRA_A_LS,
+    },
+    { cycleMul: 1, strokeLs: SPECTRUM_READER_SCAN_STROKE_LS },
+  ];
+  const stripes = [];
+  const stripsScreen = [];
+  for (let bi = 0; bi < readerBarDefs.length; bi++) {
+    const def = readerBarDefs[bi];
+    const cyc = cycleMs * def.cycleMul;
+    const uBar = (millis() % cyc) / cyc;
+    const xSweepL = SpectrumReader.sweepLocal(uBar, sweepFrac, xLeft, xRight).xSweepL;
+    const xScanWorld = wx + cosT * xSweepL;
+    const yScanWorld = wy + sinT * xSweepL;
+    const scanScr = SpectrumReader.worldToScreen(xScanWorld, yScanWorld, cam);
+    const strokePx = def.strokeLs * ls;
+    stripes.push({ cx: scanScr.x, cy: scanScr.y, strokeLs: def.strokeLs });
+    stripsScreen.push({
+      x: scanScr.x,
+      half:
+        0.5 *
+        (strokePx * Math.abs(Math.cos(barAngleRad)) +
+          spanLenGlitch * Math.abs(Math.sin(barAngleRad))),
+    });
+  }
+  spectrumReaderScanBarsScreen = stripsScreen;
+  const inMaskWorld =
+    diskIndex === 0
+      ? (px, py) => VennGeometry.inSpeckExclusiveWorld(px, py, targets, rFinal)
+      : (px, py) => VennGeometry.inInspectExclusiveWorld(px, py, targets, rFinal);
+  drawSpectrumReaderScanBarsMasked(stripes, ls, cam, targets, rFinal, {
+    inMaskWorld,
+    boundingScreenRect: (c, targ, rf, pad) => spectrumExclusiveBoundingScreenRect(c, targ[diskIndex], rf, pad),
+  }, barAngleRad);
+
+  push();
+  translate(wx, wy);
+  rotate(theta);
+  textAlign(CENTER, CENTER);
+  textSize(vennTextPx);
+  if (uiFont) textFont(uiFont);
+  for (let i = 0; i < n; i++) {
+    const gx = centers[i];
+    noStroke();
+    push();
+    translate(gx, 0);
+    fill(0, 255);
+    text(chars[i], 0, 0);
+    pop();
+  }
+  pop();
+
+  drawSpectrumReaderWordScanGlitchDots(cam, wx, wy, theta, ls, vennTextPx, chars, centers, 255);
+}
+
+/**
  * Advance inspect sweep + compute per-letter scales and **x** centers (word-local).
  * Caller must set **`textSize`** / **`textFont`** to the inspect label size first.
  */
@@ -767,7 +901,31 @@ function inspectAnimUpdateLetterStates(word, dtMs) {
   return { layout, scales, letterCx, n };
 }
 
-/** Compact frame **5** (`#venn-media-pair`): camera + graph rotation stack shared by multi-pass label draws. */
+/**
+ * After rotation, blend displayed scales from **1** (matches static **`text`**) toward animated values.
+ * `u` in **[0,1]** — use **`Easing.smootherstep`** on elapsed / ramp ms before calling.
+ */
+function inspectAnimBlendScalesFromUnity(state, u) {
+  if (!state || u >= 1) return;
+  const { layout, scales, n } = state;
+  for (let i = 0; i < n; i++) {
+    scales[i] = Easing.lerp(1, scales[i], u);
+  }
+  let totalSpan = 0;
+  const span = new Array(n);
+  for (let i = 0; i < n; i++) {
+    const cw = textWidth(layout.chars[i]);
+    span[i] = cw * scales[i];
+    totalSpan += span[i];
+  }
+  let pen = -totalSpan / 2;
+  for (let i = 0; i < n; i++) {
+    state.letterCx[i] = pen + span[i] / 2;
+    pen += span[i];
+  }
+}
+
+/** Compact frame **5** (`#venn-media-pair`): camera + graph rotation stack for label draws. */
 function pushFrame5MediaPairWorldCam(cx, screenY, camZoom, camX, camY, graphCX, graphCY, sceneAngle) {
   push();
   translate(cx, screenY);
@@ -778,53 +936,7 @@ function pushFrame5MediaPairWorldCam(cx, screenY, camZoom, camX, camY, graphCX, 
   translate(-graphCX, -graphCY);
 }
 
-/** Solid black tiles in **inspect-exclusive** world (hub **`67`** + **`inspectAnimLabel`** stage). */
-function drawInspectExclusiveBlackFillInspectAnim(targets, rFinal, ls) {
-  push();
-  noStroke();
-  fill(0);
-  rectMode(CENTER);
-  const { step, cellDraw, pad } = speckExclusiveRedDebugGridParams(ls, rFinal);
-  const cell = cellDraw;
-  const c = targets[1];
-  for (let wx = c.x - rFinal - pad; wx <= c.x + rFinal + pad; wx += step) {
-    for (let wy = c.y - rFinal - pad; wy <= c.y + rFinal + pad; wy += step) {
-      if (!VennGeometry.inInspectExclusiveWorld(wx, wy, targets, rFinal)) continue;
-      rect(wx, wy, cell, cell);
-    }
-  }
-  pop();
-}
-
-/** White ovals only — draw before all glyphs so no halo covers another letter. */
-function drawInspectAnimHalosOnly(vennTextPx, word, precomputed, layoutLs) {
-  if (!precomputed) return;
-  textAlign(CENTER, CENTER);
-  textSize(vennTextPx);
-  if (uiFont) textFont(uiFont);
-  const lsPad =
-    typeof layoutLs === 'number' && layoutLs > 0 ? layoutLs : Math.max(0.4, vennTextPx / 22);
-  const { layout, scales, letterCx, n } = precomputed;
-  for (let i = 0; i < n; i++) {
-    const letter = layout.chars[i];
-    const scaleI = scales[i];
-    const cw = textWidth(letter);
-    const glyphH = textAscent() + textDescent();
-    const padX = Math.max(6 * lsPad, vennTextPx * 0.26);
-    const padY = Math.max(5 * lsPad, vennTextPx * 0.36);
-    const haloW = cw + 3 * padX;
-    const haloH = glyphH + 3 * padY;
-    push();
-    translate(letterCx[i], 5);
-    scale(scaleI, scaleI);
-    noStroke();
-    fill(255);
-    circle(0, 0, haloW, haloH);
-    pop();
-  }
-}
-
-/** Black glyphs only — call after every halo pass (inspect word + phrase ovals). */
+/** Inspect label: per-letter zoom + sweep only (no halos / black stage). */
 function drawInspectAnimGlyphsOnly(vennTextPx, word, precomputed, layoutLs) {
   if (!precomputed) return;
   textAlign(CENTER, CENTER);
@@ -2781,17 +2893,11 @@ function draw() {
       /** Slide **`34`**: spectrum reader scan (same as **`45`**) while sediment runs; glyphs hidden — layout anchor only. */
       const seg34SpectrumReaderFx = seg34SedimentFx;
       const seg45Live = segment45 && !overlapStill && !spectrumStill;
-      const seg45InspectAnimLabelFx =
-        FeatureFlags.inspectAnimLabel() && segment45 && seg45Live;
       /** Hub **2.7** only: `45` live starts at Still 05 orientation (no rotation lerp); phrase fade only. */
       const seg45MotionSpectrumSettled =
-        segment45 &&
-        FeatureFlags.liveMotions27() &&
-        motionSpectrumSettled &&
-        seg45Live &&
-        !seg45InspectAnimLabelFx;
-      /** Set after **`frame4Elapsed`** — spectrum reader during Still **04→05** rotation, off in inspect phase. */
-      let seg45SpectrumReaderFx = false;
+        segment45 && FeatureFlags.liveMotions27() && motionSpectrumSettled && seg45Live;
+      /** Item **2.5** slide 3 and hub **2.7** live **`45`** (spectrum-isolated reader + glitch). */
+      const seg45SpectrumReaderFx = FeatureFlags.liveMotionsDesignOrHub27() && segment45 && seg45Live;
       const targets = vennTargetsSpread;
       const c0 = targets[0];
       const c1 = targets[1];
@@ -2864,7 +2970,6 @@ function draw() {
       let frame4Elapsed = 0;
       let seg34OverlapPhraseAlpha = 255;
       let seg45SpectrumPhraseAlpha = 255;
-      let inspectAnimPhraseAlphaF4 = 255;
       let tAnim;
       let easeAnim;
       if (overlapStill || spectrumStill) {
@@ -2882,40 +2987,7 @@ function draw() {
               : Math.max(0, Math.min(1, (frame4Elapsed - G34_ROT_MS) / G34_PHRASE_FADE_MS));
           seg34OverlapPhraseAlpha = 255 * Easing.smootherstep(fadeU);
         } else if (seg45Live) {
-          if (seg45InspectAnimLabelFx && frame4Elapsed < G45_ROT_MS) {
-            // Still **04→05**: same rotation + spectrum camera as live **`45`** without inspect; inspect phase starts after **`G45_ROT_MS`**.
-            const rotP = Math.min(1, frame4Elapsed / G45_ROT_MS);
-            easeAnim = Easing.easeInOutCubic(rotP);
-            tAnim = Math.min(1, frame4Elapsed / (G45_ROT_MS + SPECTRUM_STILL_PHRASE_FADE_MS));
-            const fadeU =
-              frame4Elapsed <= G45_ROT_MS
-                ? 0
-                : Math.max(
-                    0,
-                    Math.min(
-                      1,
-                      (frame4Elapsed - G45_ROT_MS) / SPECTRUM_STILL_PHRASE_FADE_MS,
-                    ),
-                  );
-            seg45SpectrumPhraseAlpha = 255 * Easing.smootherstep(fadeU);
-          } else if (seg45InspectAnimLabelFx) {
-            const f4PostRot = frame4Elapsed - G45_ROT_MS;
-            easeAnim = 1;
-            tAnim = Math.min(1, f4PostRot / G67_INSPECT_ANIM_PHRASE_CYCLE_MS);
-            const tIn = G67_INSPECT_ANIM_PHRASE_FADE_IN_MS;
-            const tHoldEnd = tIn + G67_INSPECT_ANIM_PHRASE_HOLD_MS;
-            const tOutEnd = tHoldEnd + G67_INSPECT_ANIM_PHRASE_FADE_OUT_MS;
-            if (f4PostRot >= tOutEnd) {
-              inspectAnimPhraseAlphaF4 = 255;
-            } else if (f4PostRot < tIn) {
-              inspectAnimPhraseAlphaF4 = 255 * Easing.smootherstep(f4PostRot / tIn);
-            } else if (f4PostRot < tHoldEnd) {
-              inspectAnimPhraseAlphaF4 = 255;
-            } else {
-              const uOut = (f4PostRot - tHoldEnd) / G67_INSPECT_ANIM_PHRASE_FADE_OUT_MS;
-              inspectAnimPhraseAlphaF4 = 255 * (1 - Easing.smootherstep(uOut));
-            }
-          } else if (seg45MotionSpectrumSettled) {
+          if (seg45MotionSpectrumSettled) {
             easeAnim = 1;
             tAnim = Math.min(1, frame4Elapsed / SPECTRUM_STILL_PHRASE_FADE_MS);
             const fadeU = Math.max(
@@ -2944,13 +3016,6 @@ function draw() {
           easeAnim = Easing.easeInOutCubic(tAnim);
         }
       }
-      const seg45ReaderEligible =
-        FeatureFlags.liveMotionsDesignOrHub27() && segment45 && seg45Live;
-      seg45SpectrumReaderFx =
-        seg45ReaderEligible &&
-        (!seg45InspectAnimLabelFx || frame4Elapsed < G45_ROT_MS);
-      const seg45InInspectPhase =
-        seg45InspectAnimLabelFx && frame4Elapsed >= G45_ROT_MS;
       const zoom2 = 2.35;
       // Match frame-3 end camera target so 03→04 starts from the current Still 03 placement.
       const desiredSpeckCenterY = screen2Y;
@@ -3028,20 +3093,6 @@ function draw() {
         const camXTarget = graphCX + ca * ox - sa * oy;
         const camYTarget = graphCY + sa * ox + ca * oy;
         if (segment45) {
-          if (seg45InInspectPhase) {
-            const sceneAngleInspect = -curLayouts[1].theta;
-            const inspectWxT = targets[1].x + curLayouts[1].dx;
-            const inspectWyT = targets[1].y + curLayouts[1].dy;
-            const cai = Math.cos(sceneAngleInspect);
-            const sai = Math.sin(sceneAngleInspect);
-            const oxi = inspectWxT - graphCX;
-            const oyi = inspectWyT - graphCY;
-            sceneAngle = sceneAngleInspect;
-            camZoom = zoomTarget;
-            screenY = cy;
-            camX = graphCX + cai * oxi - sai * oyi;
-            camY = graphCY + sai * oxi + cai * oyi;
-          } else {
           // Live motion 4: start at Still 04 endpoint, transition to Still 05 endpoint.
           const rotT45 = seg45MotionSpectrumSettled
             ? 1
@@ -3055,56 +3106,11 @@ function draw() {
           screenY = cy;
           camX = Easing.lerp(prStart.x, camXTarget, e45);
           camY = Easing.lerp(prStart.y, camYTarget, e45);
-          }
         } else {
           sceneAngle = sceneAngleTarget;
           camX = camXTarget;
           camY = camYTarget;
         }
-      }
-
-      let inspectAnimStateF4 = null;
-      if (seg45InInspectPhase) {
-        textSize(vennTextPx);
-        if (uiFont) textFont(uiFont);
-        inspectAnimStateF4 = inspectAnimUpdateLetterStates(WORDS[1], deltaTime);
-      }
-
-      const phraseFadeT0PreF4 = gallery15F4 ? 0 : 0.64;
-      const showPhrasesPreF4 = tAnim > phraseFadeT0PreF4 || gallery15F4;
-      let inspectPhraseHaloGeomF4 = null;
-      if (
-        showPhrasesPreF4 &&
-        seg45InInspectPhase &&
-        inspectAnimStateF4 &&
-        seg45Live
-      ) {
-        const phraseSizeScreenP = 20 * ls;
-        const lineStepP = 26 * ls;
-        const phrasesP = INSPECT_STILL_PHRASES;
-        const nP = phrasesP.length;
-        const inspectWxP = targets[1].x + curLayouts[1].dx;
-        const inspectWyP = targets[1].y + curLayouts[1].dy;
-        const caP = Math.cos(sceneAngle);
-        const saP = Math.sin(sceneAngle);
-        const oxP = inspectWxP - graphCX;
-        const oyP = inspectWyP - graphCY;
-        const inspectSxP = cx + ((graphCX + caP * oxP - saP * oyP) - camX) * camZoom;
-        const inspectSyP = screenY + ((graphCY + saP * oxP + caP * oyP) - camY) * camZoom;
-        const gapP = 74 * ls;
-        const firstLineYP = inspectSyP - gapP - nP * lineStepP;
-        const phraseHaloMulP = Math.max(1, ...inspectAnimStateF4.scales);
-        inspectPhraseHaloGeomF4 = {
-          phraseSizeScreen: phraseSizeScreenP,
-          lineStep: lineStepP,
-          phrases: phrasesP,
-          n: nP,
-          inspectSx: inspectSxP,
-          firstLineY: firstLineYP,
-          phraseHaloMul: phraseHaloMulP,
-          alpha: inspectAnimPhraseAlphaF4,
-          ls,
-        };
       }
 
       if (seg34SedimentFx) {
@@ -3159,10 +3165,6 @@ function draw() {
         ellipse(x, y, vennD, vennD);
       }
 
-      if (seg45InInspectPhase) {
-        drawInspectExclusiveBlackFillInspectAnim(targets, rFinal, ls);
-      }
-
       if (seg34SedimentFx) {
         const floorG = renderPost2SedimentFloorOnly(this, targets, rFinal);
         if (floorG) {
@@ -3202,8 +3204,7 @@ function draw() {
         DEBUG_G2_ISOLATED_EXCLUSIVE_FILLS &&
         segment45 &&
         typeof window !== 'undefined' &&
-        window.__SPEC_GALLERY2_SHELL__ === true &&
-        !seg45InspectAnimLabelFx
+        window.__SPEC_GALLERY2_SHELL__ === true
       ) {
         debugG2DrawExclusiveFillGrid(
           (wx, wy) => VennGeometry.inSpectrumExclusiveWorld(wx, wy, targets, rFinal),
@@ -3220,13 +3221,7 @@ function draw() {
         const y = targets[i].y;
         const wx = x + curLayouts[i].dx;
         const wy = y + curLayouts[i].dy;
-        if (seg45InInspectPhase && i === 1) {
-          push();
-          translate(wx, wy);
-          rotate(curLayouts[i].theta);
-          drawInspectAnimHalosOnly(vennTextPx, WORDS[1], inspectAnimStateF4, ls);
-          pop();
-        } else if ((seg45SpectrumReaderFx || seg34SpectrumReaderFx) && i === 2) {
+        if ((seg45SpectrumReaderFx || seg34SpectrumReaderFx) && i === 2) {
           drawSeg45SpectrumReaderSpectrumLabel(
             targets,
             rFinal,
@@ -3280,52 +3275,6 @@ function draw() {
 
       pop();
 
-      if (inspectPhraseHaloGeomF4) {
-        const g = inspectPhraseHaloGeomF4;
-        push();
-        resetMatrix();
-        textSize(g.phraseSizeScreen);
-        textLeading(g.lineStep);
-        textAlign(CENTER, CENTER);
-        ellipseMode(CENTER);
-        noStroke();
-        for (let pi = 0; pi < g.n; pi++) {
-          textSize(g.phraseSizeScreen);
-          const twLine = textWidth(g.phrases[pi]);
-          const glyphHp = textAscent() + textDescent();
-          const padLp = Math.max(8 * g.ls, g.phraseSizeScreen * 0.2);
-          const cy = g.firstLineY + pi * g.lineStep + g.lineStep * 0.5;
-          const ow = (twLine + 2 * padLp) * g.phraseHaloMul;
-          const oh = (glyphHp + 2 * padLp) * g.phraseHaloMul;
-          fill(255, g.alpha);
-          ellipse(g.inspectSx, cy, ow, oh);
-        }
-        pop();
-      }
-
-      if (seg45InInspectPhase && inspectAnimStateF4) {
-        push();
-        translate(cx, screenY);
-        scale(camZoom);
-        translate(-camX, -camY);
-        translate(graphCX, graphCY);
-        rotate(sceneAngle);
-        translate(-graphCX, -graphCY);
-        {
-          const gi = 1;
-          const xg = targets[gi].x;
-          const yg = targets[gi].y;
-          const wxg = xg + curLayouts[gi].dx;
-          const wyg = yg + curLayouts[gi].dy;
-          push();
-          translate(wxg, wyg);
-          rotate(curLayouts[gi].theta);
-          drawInspectAnimGlyphsOnly(vennTextPx, WORDS[1], inspectAnimStateF4, ls);
-          pop();
-        }
-        pop();
-      }
-
       // Gallery 1.5 (34/45): phrases visible from frame 0, full opacity, no fade-out.
       const phraseFadeT0 = gallery15F4 ? 0 : 0.64;
       if (tAnim > phraseFadeT0 || gallery15F4) {
@@ -3364,13 +3313,9 @@ function draw() {
           pop();
         } else {
         const useSpectrumPhrases =
-          (spectrumStill ||
-            (segment45 && (!seg45Live || frame4Elapsed >= G45_ROT_MS || seg45MotionSpectrumSettled))) &&
-          !(segment45 && seg45InInspectPhase);
-        const useInspectPhrases = segment45 && seg45Live && seg45InInspectPhase;
-        const phrases = useInspectPhrases
-          ? INSPECT_STILL_PHRASES
-          : (useSpectrumPhrases ? SPECTRUM_STILL_PHRASES : SPECK_SPECTRUM_OVERLAP_PHRASES);
+          spectrumStill ||
+          (segment45 && (!seg45Live || frame4Elapsed >= G45_ROT_MS || seg45MotionSpectrumSettled));
+        const phrases = useSpectrumPhrases ? SPECTRUM_STILL_PHRASES : SPECK_SPECTRUM_OVERLAP_PHRASES;
         const spectrumLabelToPhraseGap = 74 * ls; // match Still 03 speck->phrase gap
         const baseScr = { x: cx, y: cy };
         const padScr = Math.max(3, 4 * ls);
@@ -3391,7 +3336,7 @@ function draw() {
           return true;
         };
         let phraseSizeScreen = Math.min(13 * ls * zoomPh, chordHalf * 0.95 * zoomPh);
-        if (!useSpectrumPhrases && !useInspectPhrases) {
+        if (!useSpectrumPhrases) {
           while (phraseSizeScreen > 3.2 * ls * zoomPh) {
             textSize(phraseSizeScreen);
             let maxTw = 0;
@@ -3412,30 +3357,10 @@ function draw() {
         push();
         resetMatrix();
         textSize(phraseSizeScreen);
-        const lineStep =
-          useSpectrumPhrases || useInspectPhrases ? 26 * ls : phraseSizeScreen * lineLead;
+        const lineStep = useSpectrumPhrases ? 26 * ls : phraseSizeScreen * lineLead;
         textLeading(lineStep);
         const n = phrases.length;
-        if (useInspectPhrases) {
-          const inspectWxPh = targets[1].x + curLayouts[1].dx;
-          const inspectWyPh = targets[1].y + curLayouts[1].dy;
-          const caI = Math.cos(sceneAngle);
-          const saI = Math.sin(sceneAngle);
-          const oxI = inspectWxPh - graphCX;
-          const oyI = inspectWyPh - graphCY;
-          const inspectSxPh = cx + ((graphCX + caI * oxI - saI * oyI) - camX) * camZoom;
-          const inspectSyPh = screenY + ((graphCY + saI * oxI + caI * oyI) - camY) * camZoom;
-          const gapInsp = 74 * ls;
-          const firstLineYInsp = inspectSyPh - gapInsp - n * lineStep;
-          textAlign(CENTER, CENTER);
-          noStroke();
-          fill(0, inspectAnimPhraseAlphaF4);
-          for (let pi = 0; pi < n; pi++) {
-            textSize(phraseSizeScreen);
-            const cyL = firstLineYInsp + pi * lineStep + lineStep * 0.5;
-            text(phrases[pi], inspectSxPh, cyL);
-          }
-        } else if (useSpectrumPhrases) {
+        if (useSpectrumPhrases) {
           const spectrumWx = targets[2].x + curLayouts[2].dx;
           const spectrumWy = targets[2].y + curLayouts[2].dy;
           const ca = Math.cos(sceneAngle);
@@ -3524,14 +3449,23 @@ function draw() {
       }
 
       galleryLastFrame = galleryFrame;
-      /** Slide 3 (`34`): hold end pose + phrase fade; slide 4 (`45`) keeps looping. */
+      /** Still 04→05 (`45`) with rotation: after `tAnim >= 1`, wait one `spectrumReaderTuning().cycleMs` before resetting `galleryAnimStartMs` so spectrum scan bars complete a cycle. Settled `45` (no rotation) unchanged. */
+      const spectrumReaderTunF4Loop = FeatureFlags.spectrumReaderTuning(SPECTRUM_READER_TUNING);
+      const seg45TimelineEndMsLoop = seg45MotionSpectrumSettled
+        ? SPECTRUM_STILL_PHRASE_FADE_MS
+        : G45_ROT_MS + SPECTRUM_STILL_PHRASE_FADE_MS;
+      const seg45SpectrumOneCycleDone =
+        !seg45SpectrumReaderFx ||
+        seg45MotionSpectrumSettled ||
+        frame4Elapsed >= seg45TimelineEndMsLoop + spectrumReaderTunF4Loop.cycleMs;
+      /** Slide 3 (`34`): hold end pose + phrase fade; slide 4 (`45`) loops after spectrum reader timing (see **`seg45SpectrumOneCycleDone`**). */
       const live25LoopF4 =
         FeatureFlags.liveMotionsDesignOrHub27() &&
         segment45 &&
         !overlapStill &&
         !spectrumStill &&
-        !seg45InspectAnimLabelFx &&
-        tAnim >= 1;
+        tAnim >= 1 &&
+        seg45SpectrumOneCycleDone;
       if (live25LoopF4) {
         galleryAnimStartMs = millis();
         loop();
@@ -3542,14 +3476,13 @@ function draw() {
           (!post2Sediment.done ||
             (post2Sediment.draining && !post2Sediment.drained) ||
             (post2Sediment.particles && post2Sediment.particles.length > 0));
-        const seg45HubReadersHoldF4 =
-          FeatureFlags.liveMotionsDesignOrHub27() &&
+        const seg45HoldLoopForSpectrum =
           segment45 &&
           seg45Live &&
-          (seg45SpectrumReaderFx || seg45InspectAnimLabelFx);
-        if (seg45HubReadersHoldF4) {
-          loop();
-        } else if (!seg34SedimentBusy) {
+          seg45SpectrumReaderFx &&
+          !seg45MotionSpectrumSettled &&
+          frame4Elapsed < seg45TimelineEndMsLoop + spectrumReaderTunF4Loop.cycleMs;
+        if (!seg34SedimentBusy && !seg45HoldLoopForSpectrum) {
           noLoop();
         }
       }
@@ -3625,22 +3558,21 @@ function draw() {
       const gallery15F5 = segment56 || segment67;
       const G56_ROT_MS = 1200;
       const G56_PAIR_FADE_MS = 500;
+      /** Hub **`56`** + spectrum reader: cap rotation / pair-fade timeline; reader + **`millis()`** bars keep moving. */
+      const cap56MainF5 = G56_ROT_MS + G56_PAIR_FADE_MS;
       const G67_ROT_MS = 1200;
       const G67_INSPECT_FADE_MS = 500;
       /** Hub **`67`** (Still **06→07**): hold end pose after first cycle; spectrum reader + inspect motion keep time-based loop. */
       const cap67MainF5 = G67_ROT_MS + G67_INSPECT_FADE_MS;
-      const cap56MainF5 = G56_ROT_MS + G56_PAIR_FADE_MS;
       const seg56Live = segment56 && !pairStill && !inspectStill;
       const seg67Live = segment67 && !pairStill && !inspectStill;
-      const segInspectAnimLabelFx =
-        FeatureFlags.inspectAnimLabel() &&
-        ((segment56 && seg56Live) || (segment67 && seg67Live));
+      const segInspectAnimLabelFx = FeatureFlags.inspectAnimLabel() && segment67 && seg67Live;
       /** Hub **2.7** Still **05→06** / **06→07** (`56` / `67`): spectrum-exclusive reader (four bars), same as frame **4**. */
       const seg56SpectrumReaderFx =
         FeatureFlags.liveMotionsDesignOrHub27() && segment56 && seg56Live;
       const seg67SpectrumReaderFx =
         FeatureFlags.liveMotionsDesignOrHub27() && segment67 && seg67Live;
-      const inspectMode = inspectStill || segment67 || (segment56 && segInspectAnimLabelFx);
+      const inspectMode = inspectStill || segment67;
       if (galleryLastFrame !== 5) {
         if (!pairStill && !inspectStill) galleryAnimStartMs = millis();
         loop();
@@ -3656,49 +3588,29 @@ function draw() {
       } else {
         frame5Elapsed = millis() - galleryAnimStartMs;
         if (seg56Live) {
-          if (segInspectAnimLabelFx) {
-            easeAnim = 1;
-            tAnim = Math.min(1, frame5Elapsed / G67_INSPECT_ANIM_PHRASE_CYCLE_MS);
-            const tIn = G67_INSPECT_ANIM_PHRASE_FADE_IN_MS;
-            const tHoldEnd = tIn + G67_INSPECT_ANIM_PHRASE_HOLD_MS;
-            const tOutEnd = tHoldEnd + G67_INSPECT_ANIM_PHRASE_FADE_OUT_MS;
-            if (frame5Elapsed >= tOutEnd) {
-              seg67InspectPhraseAlpha = 255;
-            } else if (frame5Elapsed < tIn) {
-              seg67InspectPhraseAlpha = 255 * Easing.smootherstep(frame5Elapsed / tIn);
-            } else if (frame5Elapsed < tHoldEnd) {
-              seg67InspectPhraseAlpha = 255;
-            } else {
-              const uOut = (frame5Elapsed - tHoldEnd) / G67_INSPECT_ANIM_PHRASE_FADE_OUT_MS;
-              seg67InspectPhraseAlpha = 255 * (1 - Easing.smootherstep(uOut));
-            }
-          } else {
-            const rotP = Math.min(1, frame5Elapsed / G56_ROT_MS);
-            easeAnim = Easing.easeInOutCubic(rotP);
-            tAnim = Math.min(1, frame5Elapsed / (G56_ROT_MS + G56_PAIR_FADE_MS));
-            const fadeU =
-              frame5Elapsed <= G56_ROT_MS
-                ? 0
-                : Math.max(0, Math.min(1, (frame5Elapsed - G56_ROT_MS) / G56_PAIR_FADE_MS));
-            seg56PairPhraseAlpha = 255 * Easing.smootherstep(fadeU);
-          }
+          const fp56 = seg56SpectrumReaderFx ? Math.min(frame5Elapsed, cap56MainF5) : frame5Elapsed;
+          const rotP = Math.min(1, fp56 / G56_ROT_MS);
+          easeAnim = Easing.easeInOutCubic(rotP);
+          tAnim = Math.min(1, fp56 / (G56_ROT_MS + G56_PAIR_FADE_MS));
+          const fadeU =
+            fp56 <= G56_ROT_MS
+              ? 0
+              : Math.max(0, Math.min(1, (fp56 - G56_ROT_MS) / G56_PAIR_FADE_MS));
+          seg56PairPhraseAlpha = 255 * Easing.smootherstep(fadeU);
         } else if (seg67Live) {
           if (segInspectAnimLabelFx) {
-            // Hub **2.7** inspect sweep slide: one phrase in / hold / out, then stay visible; sweep loops on time.
-            easeAnim = 1;
-            tAnim = Math.min(1, frame5Elapsed / G67_INSPECT_ANIM_PHRASE_CYCLE_MS);
-            const tIn = G67_INSPECT_ANIM_PHRASE_FADE_IN_MS;
-            const tHoldEnd = tIn + G67_INSPECT_ANIM_PHRASE_HOLD_MS;
-            const tOutEnd = tHoldEnd + G67_INSPECT_ANIM_PHRASE_FADE_OUT_MS;
-            if (frame5Elapsed >= tOutEnd) {
-              seg67InspectPhraseAlpha = 255;
-            } else if (frame5Elapsed < tIn) {
-              seg67InspectPhraseAlpha = 255 * Easing.smootherstep(frame5Elapsed / tIn);
-            } else if (frame5Elapsed < tHoldEnd) {
-              seg67InspectPhraseAlpha = 255;
+            // Pair phrases during rotation; **archive…** fades in after **`G67_ROT_MS`** (same **`G67_INSPECT_FADE_MS`** as plain **`67`**). Same rotation ease as plain **`67`** (inspect stack still lerps via **`sceneAngle`**).
+            const fp67Cap = Math.min(frame5Elapsed, cap67MainF5);
+            const rotP = Math.min(1, fp67Cap / G67_ROT_MS);
+            easeAnim = Easing.easeInOutCubic(rotP);
+            tAnim = Math.min(1, fp67Cap / cap67MainF5);
+            const uArch = (frame5Elapsed - G67_ROT_MS) / G67_INSPECT_FADE_MS;
+            if (frame5Elapsed <= G67_ROT_MS) {
+              seg67InspectPhraseAlpha = 0;
+            } else if (uArch < 1) {
+              seg67InspectPhraseAlpha = 255 * Easing.smootherstep(uArch);
             } else {
-              const uOut = (frame5Elapsed - tHoldEnd) / G67_INSPECT_ANIM_PHRASE_FADE_OUT_MS;
-              seg67InspectPhraseAlpha = 255 * (1 - Easing.smootherstep(uOut));
+              seg67InspectPhraseAlpha = 255;
             }
           } else {
             const fp67 = Math.min(frame5Elapsed, cap67MainF5);
@@ -3718,8 +3630,6 @@ function draw() {
       }
       const f5p67 =
         seg67Live && !segInspectAnimLabelFx ? Math.min(frame5Elapsed, cap67MainF5) : frame5Elapsed;
-      const f5p56 =
-        seg56Live && !segInspectAnimLabelFx ? Math.min(frame5Elapsed, cap56MainF5) : frame5Elapsed;
       const fitSideFrac = 0.8;
       const zoom2 = 2.35;
       const zoomTarget = Math.min(
@@ -3836,25 +3746,18 @@ function draw() {
         const oy = inspectWy - graphCY;
         const camXTarget = graphCX + ca * ox - sa * oy;
         const camYTarget = graphCY + sa * ox + ca * oy;
-        if (segment67 || (segment56 && segInspectAnimLabelFx)) {
-          if (segInspectAnimLabelFx) {
-            sceneAngle = sceneAngleTarget;
-            camZoom = zoomTarget;
-            screenY = cy;
-            camX = camXTarget;
-            camY = camYTarget;
-          } else if (segment67) {
-            // Live motion 6: start at Still 06 endpoint, transition to Still 07 endpoint.
-            const rotT67 = seg67Live ? Math.min(1, f5p67 / G67_ROT_MS) : tAnim;
-            const e67 = Easing.easeInOutCubic(rotT67);
-            const aStart = rotSlide3 + rotStep120;
-            const prStart = phraseRotAt(aStart);
-            sceneAngle = Easing.lerp(aStart, sceneAngleTarget, e67);
-            camZoom = zoomTarget;
-            screenY = cy;
-            camX = Easing.lerp(prStart.x, camXTarget, e67);
-            camY = Easing.lerp(prStart.y, camYTarget, e67);
-          }
+        if (segment67) {
+          // Live motion 6: Still 06 → Still 07 rotation + camera lerp (same with or without **`inspectAnimLabel`**; letter sweep loops on time after).
+          const fp67Rot = seg67Live ? Math.min(frame5Elapsed, cap67MainF5) : 0;
+          const rotT67 = seg67Live ? Math.min(1, fp67Rot / G67_ROT_MS) : tAnim;
+          const e67 = Easing.easeInOutCubic(rotT67);
+          const aStart = rotSlide3 + rotStep120;
+          const prStart = phraseRotAt(aStart);
+          sceneAngle = Easing.lerp(aStart, sceneAngleTarget, e67);
+          camZoom = zoomTarget;
+          screenY = cy;
+          camX = Easing.lerp(prStart.x, camXTarget, e67);
+          camY = Easing.lerp(prStart.y, camYTarget, e67);
         } else {
           sceneAngle = sceneAngleTarget;
           camX = camXTarget;
@@ -3866,46 +3769,22 @@ function draw() {
       if (segInspectAnimLabelFx) {
         textSize(vennTextPx);
         if (uiFont) textFont(uiFont);
-        inspectAnimState = inspectAnimUpdateLetterStates(WORDS[1], deltaTime);
-      }
-
-      const phraseFadeT0Pre = gallery15F5 ? 0 : 0.64;
-      const showPhrasesPre = tAnim > phraseFadeT0Pre || gallery15F5;
-      let inspectPhraseHaloGeom = null;
-      if (
-        showPhrasesPre &&
-        segInspectAnimLabelFx &&
-        inspectAnimState &&
-        (inspectStill ||
-          (seg67Live && (segInspectAnimLabelFx || f5p67 >= G67_ROT_MS)) ||
-          (seg56Live && segInspectAnimLabelFx))
+        if (frame5Elapsed >= G67_ROT_MS) {
+          inspectAnimState = inspectAnimUpdateLetterStates(WORDS[1], deltaTime);
+          const uMot = Easing.smootherstep(
+            Math.min(1, (frame5Elapsed - G67_ROT_MS) / INSPECT_POST_ROT_MOTION_RAMP_MS),
+          );
+          inspectAnimBlendScalesFromUnity(inspectAnimState, uMot);
+        }
+      } else if (
+        seg56SpectrumReaderFx &&
+        seg56Live &&
+        frame5Elapsed >= G56_ROT_MS
       ) {
-        const phraseSizeScreenP = 20 * ls;
-        const lineStepP = 26 * ls;
-        const phrasesP = INSPECT_STILL_PHRASES;
-        const nP = phrasesP.length;
-        const inspectWxP = targets[1].x + curLayouts[1].dx;
-        const inspectWyP = targets[1].y + curLayouts[1].dy;
-        const caP = Math.cos(sceneAngle);
-        const saP = Math.sin(sceneAngle);
-        const oxP = inspectWxP - graphCX;
-        const oyP = inspectWyP - graphCY;
-        const inspectSxP = cx + ((graphCX + caP * oxP - saP * oyP) - camX) * camZoom;
-        const inspectSyP = screenY + ((graphCY + saP * oxP + caP * oyP) - camY) * camZoom;
-        const gapP = 74 * ls;
-        const firstLineYP = inspectSyP - gapP - nP * lineStepP;
-        const phraseHaloMulP = Math.max(1, ...inspectAnimState.scales);
-        inspectPhraseHaloGeom = {
-          phraseSizeScreen: phraseSizeScreenP,
-          lineStep: lineStepP,
-          phrases: phrasesP,
-          n: nP,
-          inspectSx: inspectSxP,
-          firstLineY: firstLineYP,
-          phraseHaloMul: phraseHaloMulP,
-          alpha: seg67InspectPhraseAlpha,
-          ls,
-        };
+        /** Hub **2.7** slide **7**: **inspect** sweep + per-letter zoom after rotation (not spectrum-style scan bars). */
+        textSize(vennTextPx);
+        if (uiFont) textFont(uiFont);
+        inspectAnimState = inspectAnimUpdateLetterStates(WORDS[1], deltaTime);
       }
 
       pushFrame5MediaPairWorldCam(cx, screenY, camZoom, camX, camY, graphCX, graphCY, sceneAngle);
@@ -3924,16 +3803,11 @@ function draw() {
         ellipse(x, y, vennD, vennD);
       }
 
-      if (segInspectAnimLabelFx) {
-        drawInspectExclusiveBlackFillInspectAnim(targets, rFinal, ls);
-      }
-
       if (
         DEBUG_G2_ISOLATED_EXCLUSIVE_FILLS &&
         segment56 &&
         typeof window !== 'undefined' &&
-        window.__SPEC_GALLERY2_SHELL__ === true &&
-        !segInspectAnimLabelFx
+        window.__SPEC_GALLERY2_SHELL__ === true
       ) {
         const padG = rFinal * 1.05;
         const gx0 = Math.min(c0.x, c1.x, c2.x) - padG;
@@ -3969,6 +3843,16 @@ function draw() {
         );
       }
 
+      const f5ReaderCam = {
+        cx,
+        screenY,
+        camZoom,
+        camX,
+        camY,
+        graphCX,
+        graphCY,
+        sceneAngle,
+      };
       for (let i = 0; i < 3; i++) {
         const x = targets[i].x;
         const y = targets[i].y;
@@ -3997,6 +3881,40 @@ function draw() {
           );
           continue;
         }
+        if (seg56SpectrumReaderFx && i === 0) {
+          drawDiskExclusiveReaderLabel(
+            targets,
+            rFinal,
+            ls,
+            wx,
+            wy,
+            curLayouts[i].theta,
+            vennTextPx,
+            WORDS[0],
+            f5ReaderCam,
+            0,
+          );
+          continue;
+        }
+        if (seg56SpectrumReaderFx && i === 1) {
+          push();
+          translate(wx, wy);
+          rotate(curLayouts[i].theta);
+          textAlign(CENTER, CENTER);
+          textSize(vennTextPx);
+          noStroke();
+          if (frame5Elapsed < G56_ROT_MS) {
+            fill(0);
+            text(WORDS[1], 0, 0);
+          } else if (inspectAnimState) {
+            drawInspectAnimGlyphsOnly(vennTextPx, WORDS[1], inspectAnimState, ls);
+          } else {
+            fill(0);
+            text(WORDS[1], 0, 0);
+          }
+          pop();
+          continue;
+        }
         fill(0);
         textAlign(CENTER, CENTER);
         textSize(vennTextPx);
@@ -4005,55 +3923,15 @@ function draw() {
         translate(wx, wy);
         rotate(curLayouts[i].theta);
         if (segInspectAnimLabelFx && i === 1) {
-          drawInspectAnimHalosOnly(vennTextPx, WORDS[1], inspectAnimState, ls);
+          if (frame5Elapsed < G67_ROT_MS) {
+            fill(0);
+            text(WORDS[1], 0, 0);
+          } else {
+            drawInspectAnimGlyphsOnly(vennTextPx, WORDS[1], inspectAnimState, ls);
+          }
         } else {
           text(WORDS[i], 0, 0);
         }
-        pop();
-      }
-
-      pop();
-
-      if (inspectPhraseHaloGeom) {
-        const g = inspectPhraseHaloGeom;
-        push();
-        resetMatrix();
-        textSize(g.phraseSizeScreen);
-        textLeading(g.lineStep);
-        textAlign(CENTER, CENTER);
-        ellipseMode(CENTER);
-        noStroke();
-        for (let pi = 0; pi < g.n; pi++) {
-          textSize(g.phraseSizeScreen);
-          const twLine = textWidth(g.phrases[pi]);
-          const glyphHp = textAscent() + textDescent();
-          const padLp = Math.max(8 * g.ls, g.phraseSizeScreen * 0.2);
-          const cy = g.firstLineY + pi * g.lineStep + g.lineStep * 0.5;
-          const ow = (twLine + 2 * padLp) * g.phraseHaloMul;
-          const oh = (glyphHp + 2 * padLp) * g.phraseHaloMul;
-          fill(255, g.alpha);
-          ellipse(g.inspectSx, cy, ow, oh);
-        }
-        pop();
-      }
-
-      pushFrame5MediaPairWorldCam(cx, screenY, camZoom, camX, camY, graphCX, graphCY, sceneAngle);
-
-      for (let i = 0; i < 3; i++) {
-        const x = targets[i].x;
-        const y = targets[i].y;
-        const wx = x + curLayouts[i].dx;
-        const wy = y + curLayouts[i].dy;
-        if ((seg56SpectrumReaderFx || seg67SpectrumReaderFx) && i === 2) {
-          continue;
-        }
-        if (!(segInspectAnimLabelFx && i === 1)) {
-          continue;
-        }
-        push();
-        translate(wx, wy);
-        rotate(curLayouts[i].theta);
-        drawInspectAnimGlyphsOnly(vennTextPx, WORDS[1], inspectAnimState, ls);
         pop();
       }
 
@@ -4065,19 +3943,20 @@ function draw() {
           ? 1
           : Math.max(0, Math.min(1, (tAnim - phraseFadeT0) / (1 - phraseFadeT0)));
         const phraseEase = gallery15F5 ? 1 : Easing.smootherstep(u);
-        const useSpectrumPhrases =
-          seg56Live && frame5Elapsed < G56_ROT_MS && !segInspectAnimLabelFx;
+        /** **`56`**: **Still 05** spectrum lines only during rotation; **`INSPECT_SPECTRUM_PAIR_PHRASES`** (*cultural…*) after **`G56_ROT_MS`** with **`seg56PairPhraseAlpha`** fade (reader-on slide keeps end pose + scan loop). */
+        const useSpectrumPhrases = seg56Live && frame5Elapsed < G56_ROT_MS;
+        /** Hub **`67`** + **`inspectAnimLabel`**: Still **06** opening uses **`INSPECT_SPECTRUM_PAIR_PHRASES`** (e.g. *cultural…*); after **`G67_ROT_MS`**, **`INSPECT_STILL_PHRASES`** near inspect + sweep motion. */
         const useInspectPhrases =
           inspectStill ||
-          (seg67Live && (segInspectAnimLabelFx || f5p67 >= G67_ROT_MS)) ||
-          (seg56Live && (segInspectAnimLabelFx || f5p56 >= G56_ROT_MS));
+          (seg67Live &&
+            (segInspectAnimLabelFx ? frame5Elapsed : f5p67) >= G67_ROT_MS);
         const phrases = useInspectPhrases
           ? INSPECT_STILL_PHRASES
           : (useSpectrumPhrases ? SPECTRUM_STILL_PHRASES : INSPECT_SPECTRUM_PAIR_PHRASES);
         const baseScr = { x: cx, y: cy };
         const padScr = Math.max(3, 4 * ls);
         const lineLead = 1.22;
-        const seg67InitialPair = seg67Live && !segInspectAnimLabelFx && f5p67 < G67_ROT_MS;
+        const seg67InitialPair = seg67Live && f5p67 < G67_ROT_MS;
         const screenToUnrotForPairFit = seg67InitialPair
           ? screenToUnrotWorldPhrase67Start
           : screenToUnrotWorldPhrase;
@@ -4130,27 +4009,33 @@ function draw() {
           const oy = inspectWy - graphCY;
           const inspectSx = cx + ((graphCX + ca * ox - sa * oy) - camX) * camZoom;
           const inspectSy = screenY + ((graphCY + sa * ox + ca * oy) - camY) * camZoom;
-          const gap = 74 * ls;
+          let gap = 74 * ls;
+          if (segInspectAnimLabelFx && inspectAnimState && inspectAnimState.scales) {
+            let maxSc = 1;
+            for (let si = 0; si < inspectAnimState.scales.length; si++) {
+              if (inspectAnimState.scales[si] > maxSc) maxSc = inspectAnimState.scales[si];
+            }
+            gap += camZoom * vennTextPx * 0.48 * Math.max(0, maxSc - 1);
+          }
           const firstLineY = inspectSy - gap - n * lineStep;
+          textAlign(CENTER, TOP);
           if (segInspectAnimLabelFx && inspectAnimState) {
-            textAlign(CENTER, CENTER);
             noStroke();
             fill(0, seg67InspectPhraseAlpha);
             for (let pi = 0; pi < n; pi++) {
               textSize(phraseSizeScreen);
-              const cy = firstLineY + pi * lineStep + lineStep * 0.5;
-              text(phrases[pi], inspectSx, cy);
+              text(phrases[pi], inspectSx, firstLineY + pi * lineStep);
+            }
+          } else if (FeatureFlags.gallery1Or15InkTypography()) {
+            noStroke();
+            fill(0, seg67InspectPhraseAlpha);
+            for (let pi = 0; pi < n; pi++) {
+              text(phrases[pi], inspectSx, firstLineY + pi * lineStep);
             }
           } else {
-            textAlign(CENTER, TOP);
-            if (FeatureFlags.gallery1Or15InkTypography()) {
-              noStroke();
-              fill(0, seg67InspectPhraseAlpha);
-            } else {
-              stroke(0, seg67InspectPhraseAlpha);
-              strokeWeight(Math.max(1.2, 2 * ls));
-              fill(255, seg67InspectPhraseAlpha);
-            }
+            stroke(0, seg67InspectPhraseAlpha);
+            strokeWeight(Math.max(1.2, 2 * ls));
+            fill(255, seg67InspectPhraseAlpha);
             for (let pi = 0; pi < n; pi++) {
               text(phrases[pi], inspectSx, firstLineY + pi * lineStep);
             }
@@ -4168,6 +4053,41 @@ function draw() {
           const firstLineY = spectrumSy - gap - n * lineStep;
           const midSp = (n - 1) / 2;
           const stackCy = firstLineY + (n * lineStep) / 2;
+          if (seg56SpectrumReaderFx && frame5Elapsed >= cap56MainF5) {
+            const angleStartSpectrumFit = -curLayouts[2].theta;
+            const twistFit = sceneAngle - angleStartSpectrumFit;
+            const coF = Math.cos(twistFit);
+            const siF = Math.sin(twistFit);
+            const blockRotSpectrumExclusive = (sizeScr) => {
+              textSize(sizeScr);
+              let maxTw = 0;
+              for (let i = 0; i < n; i++) maxTw = Math.max(maxTw, textWidth(phrases[i]));
+              const halfW = maxTw / 2 + padScr;
+              const halfH = (n * lineStep) / 2 + padScr;
+              const corners = [
+                [-halfW, -halfH],
+                [halfW, -halfH],
+                [halfW, halfH],
+                [-halfW, halfH],
+              ];
+              for (let k = 0; k < corners.length; k++) {
+                const lx = corners[k][0];
+                const ly = corners[k][1];
+                const rx = lx * coF - ly * siF;
+                const ry = lx * siF + ly * coF;
+                const w = screenToUnrotWorldPhrase(spectrumSx + rx, stackCy + ry);
+                if (!VennGeometry.inSpectrumExclusiveWorld(w.x, w.y, targets, rFinal)) return false;
+              }
+              return true;
+            };
+            let sz = Math.min(phraseSizeScreen, 13 * ls * zoomPh, chordHalf * 0.92 * zoomPh);
+            phraseSizeScreen = sz;
+            while (sz > 2.8 * ls && !blockRotSpectrumExclusive(sz)) {
+              sz -= 0.35 * ls;
+            }
+            phraseSizeScreen = sz;
+            textSize(phraseSizeScreen);
+          }
           if (FeatureFlags.gallery1Or15InkTypography()) {
             noStroke();
             fill(0);
@@ -4232,27 +4152,29 @@ function draw() {
       }
 
       galleryLastFrame = galleryFrame;
-      /** Still **05→06** (`56`) replays the full compact motion; **`67`** holds end pose (reader + inspect sweep keep animating). */
+      /** Still **05→06** (`56`) without spectrum reader replays the full motion; with reader, hold end pose like **`67`**. */
       const live25LoopF5 =
         FeatureFlags.liveMotionsDesignOrHub27() &&
         segment56 &&
         !pairStill &&
         !inspectStill &&
-        !segInspectAnimLabelFx &&
+        !seg56SpectrumReaderFx &&
         tAnim >= 1;
       if (live25LoopF5) {
         galleryAnimStartMs = millis();
         loop();
       } else if (tAnim >= 1) {
-        const seg67HubReadersHold =
+        const seg56HubReadersHold =
+          segment56 &&
+          seg56Live &&
           FeatureFlags.liveMotionsDesignOrHub27() &&
-          ((segment67 &&
-            seg67Live &&
-            (seg67SpectrumReaderFx || segInspectAnimLabelFx)) ||
-            (segment56 &&
-              seg56Live &&
-              (seg56SpectrumReaderFx || segInspectAnimLabelFx)));
-        if (seg67HubReadersHold) {
+          seg56SpectrumReaderFx;
+        const seg67HubReadersHold =
+          segment67 &&
+          seg67Live &&
+          FeatureFlags.liveMotionsDesignOrHub27() &&
+          (seg67SpectrumReaderFx || segInspectAnimLabelFx);
+        if (seg56HubReadersHold || seg67HubReadersHold) {
           loop();
         } else {
           noLoop();
@@ -4299,9 +4221,22 @@ function draw() {
         segment78 &&
         seg78Live &&
         (FeatureFlags.liveMotions27() ? !motionSpaceRotation : motionSpaceSettled);
+      /** Hub **2.7** slide **11** (`78` + **`motionSpaceRotation=1`**): **speck** = sediment (item **2.5** grid) or scan fallback; **inspect** = per-letter sweep/zoom (**`inspectAnim`**, not spectrum scan bars). */
+      const seg78ExclusiveReadersFx =
+        segment78 && seg78Live && FeatureFlags.liveMotions27() && motionSpaceRotation;
+      /** Same red-coverage speck-exclusive pipeline as slide **`34`** (`liveMotionsDesign`). */
+      const seg78SpeckSedimentFx = seg78ExclusiveReadersFx && FeatureFlags.liveMotionsDesign();
       if (galleryLastFrame !== 6) {
         if (!spaceStill) galleryAnimStartMs = millis();
         loop();
+      }
+      if (galleryLastFrame !== 6 && seg78SpeckSedimentFx) {
+        post2Sediment = null;
+      }
+      if (galleryLastFrame !== 6 && seg78ExclusiveReadersFx) {
+        INSPECT_ANIM.sweepT = 0;
+        INSPECT_ANIM.sweepTPrev = 0;
+        for (let ia = 0; ia < INSPECT_ANIM.triggered.length; ia++) INSPECT_ANIM.triggered[ia] = 0;
       }
 
       const desiredSpeckCenterY = height * 0.75;
@@ -4409,6 +4344,43 @@ function draw() {
       computeExclusiveLabelLayout.fixedThetas = FIXED_LABEL_THETAS;
       const curLayouts = computeExclusiveLabelLayout(targets, rFinal, WORDS, vennTextPx);
 
+      if (seg78SpeckSedimentFx) {
+        ensurePost2Sediment(this, targets, rFinal, ls);
+        const s25 = post2Sediment;
+        if (s25?.redCoverageSediment && s25.done && !s25.draining && !s25.drained) {
+          if (LIVE25_DRAIN_HOLD_FRAMES <= 0) {
+            s25.draining = true;
+            const ev = s25.spawnEveryMs != null ? s25.spawnEveryMs : POST2_SEDIMENT_SPAWN_EVERY_MS;
+            s25.lastDrainMs = millis() - ev;
+            if (s25.liveMotions27) {
+              s25.particles = [];
+              s25.drainGlyphAccumMs = 0;
+              s25.fillSpawnAccumMs = 0;
+            }
+          } else {
+            s25.drainHoldFrames = (s25.drainHoldFrames || 0) + 1;
+            if (s25.drainHoldFrames >= LIVE25_DRAIN_HOLD_FRAMES) {
+              s25.draining = true;
+              const ev = s25.spawnEveryMs != null ? s25.spawnEveryMs : POST2_SEDIMENT_SPAWN_EVERY_MS;
+              s25.lastDrainMs = millis() - ev;
+              if (s25.liveMotions27) {
+                s25.particles = [];
+                s25.drainGlyphAccumMs = 0;
+                s25.fillSpawnAccumMs = 0;
+              }
+            }
+          }
+        }
+        stepPost2Sediment(this, targets, rFinal);
+      }
+
+      let inspectAnimState78 = null;
+      if (seg78ExclusiveReadersFx) {
+        textSize(vennTextPx);
+        if (uiFont) textFont(uiFont);
+        inspectAnimState78 = inspectAnimUpdateLetterStates(WORDS[1], deltaTime);
+      }
+
       push();
       translate(cx, screenY);
       scale(camZoom);
@@ -4429,6 +4401,19 @@ function draw() {
         strokeJoin(ROUND);
         strokeCap(ROUND);
         ellipse(x, y, vennD, vennD);
+      }
+
+      if (seg78SpeckSedimentFx) {
+        const floorG = renderPost2SedimentFloorOnly(this, targets, rFinal);
+        if (floorG) {
+          noTint();
+          image(floorG, 0, 0);
+        }
+        const glyphG = renderPost2SedimentGlyphsOnly(this, targets, rFinal);
+        if (glyphG) {
+          noTint();
+          image(glyphG, 0, 0);
+        }
       }
 
       if (
@@ -4456,11 +4441,66 @@ function draw() {
         );
       }
 
+      const f6ReaderCam = {
+        cx,
+        screenY,
+        camZoom,
+        camX,
+        camY,
+        graphCX,
+        graphCY,
+        sceneAngle: angle,
+      };
       for (let i = 0; i < 3; i++) {
         const x = targets[i].x;
         const y = targets[i].y;
         const wx = x + curLayouts[i].dx;
         const wy = y + curLayouts[i].dy;
+        if (seg78SpeckSedimentFx && i === 0 && post2Sediment?.redCoverageSediment) {
+          textAlign(CENTER, CENTER);
+          textSize(vennTextPx);
+          noStroke();
+          push();
+          translate(wx, wy);
+          rotate(curLayouts[i].theta);
+          blendMode(DIFFERENCE);
+          fill(255);
+          text(WORDS[i], 0, 0);
+          blendMode(BLEND);
+          pop();
+          continue;
+        }
+        if (seg78ExclusiveReadersFx && i === 0) {
+          drawDiskExclusiveReaderLabel(
+            targets,
+            rFinal,
+            ls,
+            wx,
+            wy,
+            curLayouts[i].theta,
+            vennTextPx,
+            WORDS[i],
+            f6ReaderCam,
+            0,
+          );
+          continue;
+        }
+        if (seg78ExclusiveReadersFx && i === 1) {
+          push();
+          translate(wx, wy);
+          rotate(curLayouts[i].theta);
+          if (inspectAnimState78) {
+            drawInspectAnimGlyphsOnly(vennTextPx, WORDS[1], inspectAnimState78, ls);
+          } else {
+            fill(0);
+            textAlign(CENTER, CENTER);
+            textSize(vennTextPx);
+            noStroke();
+            text(WORDS[1], 0, 0);
+          }
+          pop();
+          continue;
+        }
         fill(0);
         textAlign(CENTER, CENTER);
         textSize(vennTextPx);
@@ -4481,7 +4521,10 @@ function draw() {
           : Math.max(0, Math.min(1, (tAnim - phraseFadeT0) / (1 - phraseFadeT0)));
         const phraseEase = gallery15F6 ? 1 : Easing.smootherstep(u);
         const useInspectPhrases =
-          seg78Live && !seg78MotionSpaceSettled && frame6Elapsed < G78_ROT_MS;
+          seg78Live &&
+          !seg78MotionSpaceSettled &&
+          !seg78ExclusiveReadersFx &&
+          frame6Elapsed < G78_ROT_MS;
         const phrases = useInspectPhrases ? INSPECT_STILL_PHRASES : SPECK_INSPECT_SPACE_PHRASES;
         const baseScr = { x: cx, y: cy };
         const padScr = Math.max(3, 4 * ls);
@@ -4595,12 +4638,30 @@ function draw() {
         FeatureFlags.liveMotionsDesignOrHub27() &&
         segment78 &&
         !spaceStill &&
+        !FeatureFlags.motionSpaceRotationNoLoop() &&
         tAnim >= 1;
       if (live25LoopF6) {
+        if (seg78SpeckSedimentFx) post2Sediment = null;
         galleryAnimStartMs = millis();
         loop();
       } else if (tAnim >= 1) {
-        noLoop();
+        const seg78SedimentBusy =
+          seg78SpeckSedimentFx &&
+          post2Sediment &&
+          (!post2Sediment.done ||
+            (post2Sediment.draining && !post2Sediment.drained) ||
+            (post2Sediment.particles && post2Sediment.particles.length > 0));
+        const seg78RotationNoLoopReadersHold =
+          segment78 &&
+          seg78Live &&
+          FeatureFlags.liveMotionsDesignOrHub27() &&
+          FeatureFlags.motionSpaceRotationNoLoop() &&
+          seg78ExclusiveReadersFx;
+        if (seg78RotationNoLoopReadersHold || seg78SedimentBusy) {
+          loop();
+        } else {
+          noLoop();
+        }
       }
       return;
     }

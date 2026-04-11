@@ -339,6 +339,8 @@
     window.__SPEC_MOTION_SPACE_SETTLED__ = params.get('motionSpaceSettled') === '1';
     /** `motionSegment=78` + **`liveMotions27`**: opt **in** to full −120° rotation (default is settled). */
     window.__SPEC_MOTION_SPACE_ROTATION__ = params.get('motionSpaceRotation') === '1';
+    /** `motionSegment=78` + hub **2.7** full rotation: play **once**, then **`noLoop()`** (no **`galleryAnimStartMs`** reset). */
+    window.__SPEC_MOTION_SPACE_ROTATION_NO_LOOP__ = params.get('motionSpaceRotationNoLoop') === '1';
     /** `motionSegment=67` hub duplicate: animated **inspect** label + optional inspect-exclusive debug alpha. */
     window.__SPEC_INSPECT_ANIM_LABEL__ = params.get('inspectAnimLabel') === '1';
     if (params.has('inspectExclusiveDebugAlpha')) {

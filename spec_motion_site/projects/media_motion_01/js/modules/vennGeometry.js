@@ -63,6 +63,38 @@ VennGeometry.isSpectrumExclusiveReaderScanClip = function (px, py, centers, rFin
   return true;
 };
 
+/**
+ * Reader sweep span: inside speck disk **`rFinal + speckOutset`**, outside other disks at **`rFinal`** (ring-outset like spectrum).
+ */
+VennGeometry.isSpeckExclusiveReaderScanClip = function (px, py, centers, rFinal, speckOutset) {
+  const o = Math.max(0, speckOutset);
+  const c0 = centers[0];
+  const rSpeck0 = (rFinal + o) * (rFinal + o);
+  const r2 = rFinal * rFinal;
+  if (VennGeometry.distSq(px, py, c0.x, c0.y) > rSpeck0) return false;
+  for (let k = 0; k < centers.length; k++) {
+    if (k === 0) continue;
+    if (VennGeometry.distSq(px, py, centers[k].x, centers[k].y) <= r2) return false;
+  }
+  return true;
+};
+
+/**
+ * Reader sweep span: inside inspect disk **`rFinal + inspectOutset`**, outside other disks at **`rFinal`**.
+ */
+VennGeometry.isInspectExclusiveReaderScanClip = function (px, py, centers, rFinal, inspectOutset) {
+  const o = Math.max(0, inspectOutset);
+  const c1 = centers[1];
+  const rInsp1 = (rFinal + o) * (rFinal + o);
+  const r2 = rFinal * rFinal;
+  if (VennGeometry.distSq(px, py, c1.x, c1.y) > rInsp1) return false;
+  for (let k = 0; k < centers.length; k++) {
+    if (k === 1) continue;
+    if (VennGeometry.distSq(px, py, centers[k].x, centers[k].y) <= r2) return false;
+  }
+  return true;
+};
+
 /** Speck ∩ spectrum with full `rFinal` disks, excluding the inspect (1) disk (no triple-overlap fill). */
 VennGeometry.isSpeckSpectrumOverlapGeometric = function (px, py, centers, rFinal) {
   const r2 = rFinal * rFinal;

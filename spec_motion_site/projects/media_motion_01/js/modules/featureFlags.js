@@ -23,6 +23,11 @@ FeatureFlags.inspectAnimLabel = function () {
   return typeof window !== 'undefined' && window.__SPEC_INSPECT_ANIM_LABEL__ === true;
 };
 
+/** `motionSpaceRotationNoLoop=1` — frame **6** **`78`** motion does not restart after **`tAnim >= 1`**. */
+FeatureFlags.motionSpaceRotationNoLoop = function () {
+  return typeof window !== 'undefined' && window.__SPEC_MOTION_SPACE_ROTATION_NO_LOOP__ === true;
+};
+
 FeatureFlags.inspectExclusiveDebugFillAlpha = function () {
   if (typeof window === 'undefined') return null;
   const a = window.__SPEC_INSPECT_EXCLUSIVE_DEBUG_ALPHA__;
